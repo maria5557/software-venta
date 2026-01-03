@@ -1,22 +1,23 @@
 package org.tpv.service;
 
 import org.tpv.domain.Producto;
+import org.tpv.repository.ProductoRepository;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.Map;
+import java.sql.SQLException;
+
 
 public class ProductoService {
 
-    private final Map<String, Producto> productos = new HashMap<>();
+    private final ProductoRepository repository = new ProductoRepository();
 
-    public Producto buscarPorCodigo(String codigoBarra) {
-        return productos.get(codigoBarra);
+    public Producto buscarPorCodigo(String codigoBarra) throws SQLException {
+        return repository.findByCodigo(codigoBarra);
     }
 
-    public Producto crearProducto(String codigoBarra, String nombre, BigDecimal precioBase) {
+    public Producto crearProducto(String codigoBarra, String nombre, BigDecimal precioBase) throws SQLException {
         Producto producto = new Producto(null, codigoBarra, nombre, precioBase);
-        productos.put(codigoBarra, producto);
+        repository.save(producto);
         return producto;
     }
 }
