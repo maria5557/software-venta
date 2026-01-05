@@ -6,7 +6,6 @@ import org.tpv.repository.ProductoRepository;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 
-
 public class ProductoService {
 
     private final ProductoRepository repository = new ProductoRepository();
@@ -19,5 +18,10 @@ public class ProductoService {
         Producto producto = new Producto(null, codigoBarra, nombre, precioBase);
         repository.save(producto);
         return producto;
+    }
+
+
+    public void actualizarProducto(Producto producto) throws SQLException {
+        repository.update(producto);
     }
 }

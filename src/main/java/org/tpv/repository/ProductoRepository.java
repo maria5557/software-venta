@@ -3,6 +3,7 @@ package org.tpv.repository;
 import org.tpv.database.DatabaseManager;
 import org.tpv.domain.Producto;
 
+
 import java.sql.*;
 
 public class ProductoRepository {
@@ -18,7 +19,6 @@ public class ProductoRepository {
             ps.setBigDecimal(3, producto.getPrecioBase());
             ps.executeUpdate();
 
-            // Recuperar id generado
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 if (rs.next()) {
                     producto.setId(rs.getLong(1));
@@ -26,7 +26,6 @@ public class ProductoRepository {
             }
         }
     }
-
 
     public Producto findByCodigo(String codigoBarra) throws SQLException {
         String sql = "SELECT * FROM producto WHERE codigo_barra = ?";
@@ -47,5 +46,26 @@ public class ProductoRepository {
             }
         }
         return null;
+    }
+
+
+    public void update(Producto producto) throws SQLException {
+        String sql = "UPDATE producto SET nombre = ?, precio_base = ? WHERE codigo_barra = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, producto.getNombre());
+            ps.setBigDecimal(2, producto.getPrecioBase());
+            ps.setString(3, producto.getCodigoBarra());
+
+            int filasActualizadas = ps.executeUpdate();
+
+            if (filasActualizadas > 0) {
+                System.out.println("✓ Producto actualizado en BD: " + producto.getNombre());
+            } else {
+                System.out.println("⚠ No se encontró el producto para actualizar: " + producto.getCodigoBarra());
+            }
+        }
     }
 }

@@ -16,6 +16,6 @@ public class Producto {
     private Long id;
     private String codigoBarra;
     private String nombre;
-    private BigDecimal precioBase; // precio SIN IVA
+    private BigDecimal precioBase; // precio con IVA
     //private boolean activo;
 }
