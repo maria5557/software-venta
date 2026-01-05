@@ -3,9 +3,11 @@ package org.tpv.ui.controller;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.GridPane;
@@ -408,6 +410,30 @@ public class VentaController {
 
         dialog.getDialogPane().setContent(grid);
 
+        Node botonCrear = dialog.getDialogPane().lookupButton(btnCrear);
+        botonCrear.setDisable(true);
+
+        // VALIDACIÓN EN TIEMPO REAL
+        ChangeListener<String> validador = (obs, oldVal, newVal) -> {
+
+            String nombre = txtNombre.getText().trim();
+            String precioStr = txtPrecio.getText().trim().replace(",", ".");
+
+            boolean nombreValido = !nombre.isEmpty();
+            boolean precioValido;
+
+            try {
+                BigDecimal precio = new BigDecimal(precioStr);
+                precioValido = precio.compareTo(BigDecimal.ZERO) > 0;
+            } catch (Exception e) {
+                precioValido = false;
+            }
+
+            botonCrear.setDisable(!(nombreValido && precioValido));
+        };
+        txtNombre.textProperty().addListener(validador);
+        txtPrecio.textProperty().addListener(validador);
+
         javafx.application.Platform.runLater(() -> txtNombre.requestFocus());
 
         dialog.setResultConverter(dialogButton -> {
@@ -416,22 +442,7 @@ public class VentaController {
                     String nombre = txtNombre.getText().trim();
                     String precioStr = txtPrecio.getText().trim().replace(",", ".");
 
-                    if (nombre.isEmpty()) {
-                        mostrarAlerta("Error", "El nombre no puede estar vacío");
-                        return null;
-                    }
-
-                    BigDecimal precio;
-                    try {
-                        precio = new BigDecimal(precioStr);
-                        if (precio.compareTo(BigDecimal.ZERO) < 0) {
-                            mostrarAlerta("Error", "El precio no puede ser negativo");
-                            return null;
-                        }
-                    } catch (NumberFormatException e) {
-                        mostrarAlerta("Error", "Precio inválido. Usa formato: 10.50");
-                        return null;
-                    }
+                    BigDecimal precio = new BigDecimal(precioStr);
 
                     Producto nuevoProducto = productoService.crearProducto(codigo, nombre, precio);
                     System.out.println("✓ Producto creado: " + nuevoProducto.getNombre()
