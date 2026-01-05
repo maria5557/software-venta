@@ -16,7 +16,7 @@ public class Main {
             // Inicializar la base de datos SQLite
             DatabaseManager.inicializarBaseDatos();
 
-            Configuracion config = new Configuracion(21);
+            Configuracion config = new Configuracion();
             ProductoService productoService = new ProductoService();
             VentaService ventaService = new VentaService(config);
 

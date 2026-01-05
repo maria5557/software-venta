@@ -63,6 +63,28 @@ public class DatabaseManager {
                 )
             """);
 
+            // Crear tabla configuracion
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS configuracion (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    iva_general INTEGER DEFAULT 21,
+                    nombre_tienda TEXT,
+                    direccion TEXT,
+                    ciudad TEXT,
+                    codigo_postal TEXT,
+                    telefono TEXT,
+                    cif TEXT ,
+                    email TEXT 
+                )
+            """);
+
+            // Insertar configuración por defecto si no existe
+            stmt.execute("""
+                INSERT OR IGNORE INTO configuracion (id, iva_general, nombre_tienda, direccion, ciudad, codigo_postal, telefono, cif, email)
+                VALUES (1, 21, 'ALMADENA TELEFONIA', 'AV GRANADA 5', 'JAÉN', '23003', '953 474 840', 'B12345678', 'almadenashop786@gmail.com')
+            """);
+
+
             System.out.println("✓ Base de datos SQLite inicializada correctamente");
             System.out.println("✓ Archivo de base de datos: data/tpv.db");
         }

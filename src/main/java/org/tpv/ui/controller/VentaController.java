@@ -17,6 +17,8 @@ import org.tpv.config.Configuracion;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
 import org.tpv.domain.Producto;
+import org.tpv.repository.ConfiguracionRepository;
+import org.tpv.service.ImpresoraService;
 import org.tpv.service.ProductoService;
 import org.tpv.service.VentaService;
 
@@ -51,6 +53,8 @@ public class VentaController {
     private ProductoService productoService;
     private VentaService ventaService;
     private Configuracion config;
+    private ImpresoraService impresoraService;
+    private ConfiguracionRepository configRepository;
 
     private ObservableList<LineaFactura> lineasObservables = FXCollections.observableArrayList();
 
@@ -59,19 +63,34 @@ public class VentaController {
     public void initialize() {
         System.out.println("✓ Inicializando VentaController...");
 
-        // Inicializar servicios
-        productoService = new ProductoService();
-        config = new Configuracion(21); // IVA del 21%
-        ventaService = new VentaService(config);
-        ventaService.iniciarVenta();
+        try {
+            // Inicializar repositorios y servicios
+            productoService = new ProductoService();
+            configRepository = new ConfiguracionRepository();
 
-        // Configurar las columnas de la tabla
-        configurarTabla();
+            // Cargar configuración desde la base de datos
+            config = configRepository.obtenerConfiguracion();
+            System.out.println("✓ Configuración cargada: " + config.getNombreTienda());
 
-        // Focus en el campo de código
-        txtCodigoBarra.requestFocus();
+            ventaService = new VentaService(config);
+            ventaService.iniciarVenta();
 
-        System.out.println("✓ VentaController inicializado correctamente");
+            impresoraService = new ImpresoraService(config);
+
+            // Configurar las columnas de la tabla
+            configurarTabla();
+
+            // Focus en el campo de código
+            txtCodigoBarra.requestFocus();
+
+            System.out.println("✓ VentaController inicializado correctamente");
+
+        } catch (Exception e) {
+            System.err.println("❌ Error al inicializar VentaController: " + e.getMessage());
+            e.printStackTrace();
+            mostrarError("Error de inicialización",
+                    "No se pudo cargar la configuración: " + e.getMessage());
+        }
     }
 
     private void configurarTabla() {
@@ -497,13 +516,14 @@ public class VentaController {
 
         Factura factura = ventaService.finalizarVenta();
 
-        // ⭐ ACTUALIZAR PRODUCTOS EN LA BD CON LOS CAMBIOS ⭐
+        // ACTUALIZAR PRODUCTOS EN LA BD CON LOS CAMBIOS
         actualizarProductosEnBD(factura);
 
-        Alert info = new Alert(Alert.AlertType.INFORMATION);
-        info.setTitle("Cobro realizado");
-        info.setHeaderText("✓ Venta finalizada correctamente");
-        info.setContentText(String.format(
+        // MOSTRAR DIÁLOGO DE CONFIRMACIÓN CON OPCIÓN DE IMPRIMIR
+        Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmacion.setTitle("Cobro realizado");
+        confirmacion.setHeaderText("✓ Venta finalizada correctamente");
+        confirmacion.setContentText(String.format(
                 """
                 ═══════════════════════════════
                 Base imponible: %.2f€
@@ -514,7 +534,7 @@ public class VentaController {
                 
                 Artículos: %d
                 
-                ✓ Productos actualizados en la BD
+                ¿Deseas imprimir el ticket?
                 """,
                 factura.getTotalSinIva(),
                 factura.getTotalIva(),
@@ -522,12 +542,29 @@ public class VentaController {
                 factura.getLineas().size()
         ));
 
-        info.showAndWait();
+        ButtonType btnImprimir = new ButtonType("Imprimir");
+        ButtonType btnNoImprimir = new ButtonType("No imprimir");
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        confirmacion.getButtonTypes().setAll(btnImprimir, btnNoImprimir, btnCancelar);
+
+        Optional<ButtonType> resultado = confirmacion.showAndWait();
+
+        if (resultado.isPresent()) {
+            if (resultado.get() == btnImprimir) {
+                imprimirTicket(factura);
+            } else if (resultado.get() == btnNoImprimir) {
+                System.out.println("✓ Venta cobrada sin imprimir: " + factura.getTotalConIva() + "€");
+            } else {
+                // Cancelar - no hacer nada, mantener la venta actual
+                return;
+            }
+        }
 
         System.out.println("✓ Venta cobrada: " + factura.getTotalConIva() + "€");
-
         onNuevaVenta();
     }
+
 
     // ===== ACTUALIZAR PRODUCTOS EN LA BD =====
     private void actualizarProductosEnBD(Factura factura) {
@@ -558,6 +595,66 @@ public class VentaController {
                 }
             } catch (SQLException e) {
                 System.err.println("⚠ Error actualizando producto: " + linea.getCodigoProducto());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void imprimirTicket(Factura factura) {
+        // Obtener impresoras disponibles
+        String[] impresoras = impresoraService.obtenerImpresorasDisponibles();
+
+        if (impresoras.length == 0) {
+            mostrarError("Sin impresoras",
+                    "No se detectaron impresoras en el sistema.\n" +
+                            "Verifica que la impresora esté conectada y los drivers instalados.");
+            return;
+        }
+
+        // Si solo hay una impresora, usarla directamente
+        if (impresoras.length == 1) {
+            try {
+                impresoraService.imprimirTicket(factura, impresoras[0]);
+
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+                info.setTitle("Impresión exitosa");
+                info.setHeaderText("Ticket impreso correctamente");
+                info.setContentText("Impresora: " + impresoras[0]);
+                info.showAndWait();
+
+                System.out.println("✓ Ticket impreso en: " + impresoras[0]);
+
+            } catch (Exception e) {
+                mostrarError("Error al imprimir",
+                        "No se pudo imprimir el ticket:\n" + e.getMessage());
+                e.printStackTrace();
+            }
+            return;
+        }
+
+        // Si hay múltiples impresoras, mostrar diálogo de selección
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(impresoras[0], impresoras);
+        dialog.setTitle("Seleccionar impresora");
+        dialog.setHeaderText("Selecciona la impresora para el ticket");
+        dialog.setContentText("Impresora:");
+
+        Optional<String> seleccion = dialog.showAndWait();
+
+        if (seleccion.isPresent()) {
+            try {
+                impresoraService.imprimirTicket(factura, seleccion.get());
+
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+                info.setTitle("Impresión exitosa");
+                info.setHeaderText("Ticket impreso correctamente");
+                info.setContentText("Impresora: " + seleccion.get());
+                info.showAndWait();
+
+                System.out.println("✓ Ticket impreso en: " + seleccion.get());
+
+            } catch (Exception e) {
+                mostrarError("Error al imprimir",
+                        "No se pudo imprimir el ticket:\n" + e.getMessage());
                 e.printStackTrace();
             }
         }
