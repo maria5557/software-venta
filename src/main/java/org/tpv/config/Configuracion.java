@@ -19,6 +19,7 @@ public class Configuracion {
     private String codigoPostal;
     private String telefono;
     private String cif;
+    private String nif;
     private String email;
 
 }

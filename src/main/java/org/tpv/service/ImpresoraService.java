@@ -1,44 +1,40 @@
 package org.tpv.service;
 
-import com.github.anastaciocintra.escpos.EscPos;
-import com.github.anastaciocintra.escpos.EscPosConst;
-import com.github.anastaciocintra.escpos.Style;
-import com.github.anastaciocintra.output.PrinterOutputStream;
 import org.tpv.config.Configuracion;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
 
-import javax.print.PrintService;
-import javax.print.PrintServiceLookup;
-import java.io.IOException;
+import javax.print.*;
+import java.awt.*;
+import java.awt.print.*;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ImpresoraService {
 
     private final Configuracion config;
+    private Factura facturaActual;
 
     public ImpresoraService(Configuracion config) {
         this.config = config;
     }
 
-    /**
-     * Obtiene la lista de impresoras disponibles en el sistema
-     */
     public String[] obtenerImpresorasDisponibles() {
         PrintService[] printServices = PrintServiceLookup.lookupPrintServices(null, null);
         String[] nombreImpresoras = new String[printServices.length];
 
+        System.out.println("=== IMPRESORAS DETECTADAS ===");
         for (int i = 0; i < printServices.length; i++) {
             nombreImpresoras[i] = printServices[i].getName();
+            System.out.println((i + 1) + ". " + nombreImpresoras[i]);
         }
+        System.out.println("============================");
 
         return nombreImpresoras;
     }
 
-    /**
-     * Busca una impresora por nombre
-     */
     private PrintService buscarImpresora(String nombreImpresora) {
         PrintService[] printServices = PrintServiceLookup.lookupPrintServices(null, null);
 
@@ -51,13 +47,9 @@ public class ImpresoraService {
         return null;
     }
 
-    /**
-     * Imprime el ticket de la factura
-     * @param factura La factura a imprimir
-     * @param nombreImpresora Nombre de la impresora (null = impresora por defecto)
-     * @throws Exception Si hay algún error en la impresión
-     */
     public void imprimirTicket(Factura factura, String nombreImpresora) throws Exception {
+
+        this.facturaActual = factura;
 
         PrintService printService;
 
@@ -67,166 +59,253 @@ public class ImpresoraService {
                 throw new Exception("No se encontró la impresora: " + nombreImpresora);
             }
         } else {
-            // Usar impresora por defecto
             printService = PrintServiceLookup.lookupDefaultPrintService();
             if (printService == null) {
                 throw new Exception("No hay impresora por defecto configurada");
             }
         }
 
-        System.out.println("✓ Imprimiendo en: " + printService.getName());
+        System.out.println("✓ Usando impresora: " + printService.getName());
 
-        // Crear el stream de impresión
-        PrinterOutputStream printerOutputStream = new PrinterOutputStream(printService);
-        EscPos escpos = new EscPos(printerOutputStream);
+        PrinterJob job = PrinterJob.getPrinterJob();
+        job.setPrintService(printService);
+
+        PageFormat pageFormat = job.defaultPage();
+        Paper paper = pageFormat.getPaper();
+
+        double width = 226;
+        double height = 800;
+
+        paper.setSize(width, height);
+        paper.setImageableArea(5, 5, width - 10, height - 10);
+        pageFormat.setPaper(paper);
+        pageFormat.setOrientation(PageFormat.PORTRAIT);
+
+        job.setPrintable(new TicketPrintable(), pageFormat);
+
+        System.out.println("✓ Enviando a impresora...");
 
         try {
-            generarContenidoTicket(escpos, factura);
-            escpos.close();
-        } catch (IOException e) {
+            job.print();
+            System.out.println("✓ Ticket enviado correctamente");
+            Thread.sleep(500);
+        } catch (PrinterException e) {
             throw new Exception("Error al imprimir: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * Genera el contenido del ticket usando comandos ESC/POS
-     */
-    private void generarContenidoTicket(EscPos escpos, Factura factura) throws IOException {
+    private class TicketPrintable implements Printable {
 
-        // Estilos
-        Style titulo = new Style()
-                .setFontSize(Style.FontSize._2, Style.FontSize._2)
-                .setJustification(EscPosConst.Justification.Center);
+        @Override
+        public int print(Graphics graphics, PageFormat pageFormat, int pageIndex) throws PrinterException {
 
-        Style subtitulo = new Style()
-                .setFontSize(Style.FontSize._1, Style.FontSize._1)
-                .setJustification(EscPosConst.Justification.Center);
-
-        Style normal = new Style()
-                .setFontSize(Style.FontSize._1, Style.FontSize._1)
-                .setJustification(EscPosConst.Justification.Left_Default);
-
-        Style centrado = new Style()
-                .setFontSize(Style.FontSize._1, Style.FontSize._1)
-                .setJustification(EscPosConst.Justification.Center);
-
-        Style negrita = new Style()
-                .setFontSize(Style.FontSize._1, Style.FontSize._1)
-                .setBold(true);
-
-        // ========== ENCABEZADO ==========
-        escpos.writeLF(titulo, config.getNombreTienda());
-        escpos.writeLF(centrado, config.getDireccion());
-        escpos.writeLF(centrado, config.getCodigoPostal() + " - " + config.getCiudad());
-        escpos.writeLF(centrado, "Tel: " + config.getTelefono());
-        escpos.writeLF(centrado, "CIF: " + config.getCif());
-
-        if (config.getEmail() != null && !config.getEmail().isEmpty()) {
-            escpos.writeLF(centrado, config.getEmail());
-        }
-
-        escpos.feed(1);
-        escpos.writeLF(centrado, linea(32, "="));
-        escpos.feed(1);
-
-        // ========== DATOS DE LA FACTURA ==========
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-        String fechaFormateada = factura.getFecha().format(formatter);
-
-        if (factura.getNumeroFactura() != null) {
-            escpos.writeLF(normal, "Factura: " + factura.getNumeroFactura());
-        }
-        escpos.writeLF(normal, "Fecha: " + fechaFormateada);
-
-        escpos.feed(1);
-        escpos.writeLF(centrado, linea(32, "-"));
-        escpos.feed(1);
-
-        // ========== LÍNEAS DE PRODUCTOS ==========
-        // Encabezado de tabla
-        escpos.writeLF(negrita, formatoLinea("CANT", "PRODUCTO", "IMPORTE"));
-        escpos.writeLF(normal, linea(32, "-"));
-
-        for (LineaFactura linea : factura.getLineas()) {
-            // Línea 1: Cantidad y nombre
-            String cantidad = String.valueOf(linea.getCantidad());
-            String nombre = linea.getNombreProducto();
-
-            // Truncar nombre si es muy largo (máximo 18 caracteres)
-            if (nombre.length() > 18) {
-                nombre = nombre.substring(0, 15) + "...";
+            if (pageIndex > 0) {
+                return NO_SUCH_PAGE;
             }
 
-            escpos.writeLF(normal, formatoCantidadNombre(cantidad, nombre));
+            Graphics2D g2d = (Graphics2D) graphics;
+            g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-            // Línea 2: Precio unitario, descuento (si hay) y subtotal
-            BigDecimal precioConDescuento = linea.getPrecioConDescuento();
-            String lineaPrecio = String.format("  %.2f€", precioConDescuento);
+            int x = 10;
+            int y = 20;
+            int lineHeight = 14;
+            int width = (int) pageFormat.getImageableWidth() - 20;
 
-            if (linea.getDescuento() > 0) {
-                lineaPrecio += String.format(" (-%d%%)", linea.getDescuento());
+            Font fontNormal = new Font("Monospaced", Font.PLAIN, 9);
+            Font fontBold = new Font("Monospaced", Font.BOLD, 9);
+            Font fontTitle = new Font("Monospaced", Font.BOLD, 12);
+            Font fontSmall = new Font("Monospaced", Font.PLAIN, 8);
+
+            g2d.setColor(Color.BLACK);
+
+            try {
+                // ========== ENCABEZADO ==========
+                g2d.setFont(fontTitle);
+                y = drawCenteredText(g2d, config.getNombreTienda(), x, y, width);
+                y += 3;
+
+                g2d.setFont(fontNormal);
+                y = drawCenteredText(g2d, config.getDireccion(), x, y, width);
+                y = drawCenteredText(g2d, config.getCodigoPostal() + " - " + config.getCiudad(), x, y, width);
+                y = drawCenteredText(g2d, "Tel: " + config.getTelefono(), x, y, width);
+
+                if (config.getCif() != null && !config.getCif().isEmpty()) {
+                    y = drawCenteredText(g2d, "CIF: " + config.getCif(), x, y, width);
+                }
+
+                if (config.getNif() != null && !config.getNif().isEmpty()) {
+                    y = drawCenteredText(g2d, "NIF: " + config.getNif(), x, y, width);
+                }
+
+                if (config.getEmail() != null && !config.getEmail().isEmpty()) {
+                    g2d.setFont(fontSmall);
+                    y = drawCenteredText(g2d, config.getEmail(), x, y, width);
+                    g2d.setFont(fontNormal);
+                }
+
+                y += 5;
+                y = drawLine(g2d, "=", x, y, width);
+                y += 5;
+
+                // ========== FECHA ==========
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+                String fechaFormateada = facturaActual.getFecha().format(formatter);
+
+                if (facturaActual.getNumeroFactura() != null) {
+                    g2d.drawString("Factura: " + facturaActual.getNumeroFactura(), x, y);
+                    y += lineHeight;
+                }
+
+                g2d.drawString("Fecha: " + fechaFormateada, x, y);
+                y += lineHeight + 3;
+
+                y = drawLine(g2d, "-", x, y, width);
+                y += 5;
+
+                // ========== PRODUCTOS ==========
+                g2d.setFont(fontBold);
+                g2d.drawString("CANT  PRODUCTO", x, y);
+                g2d.drawString("TOTAL", x + width - 45, y);
+                y += lineHeight;
+                g2d.setFont(fontNormal);
+                y = drawLine(g2d, "-", x, y, width);
+
+                for (LineaFactura linea : facturaActual.getLineas()) {
+                    y += 3;
+
+                    // Dividir el nombre en múltiples líneas si es necesario
+                    String nombreCompleto = linea.getNombreProducto();
+                    List<String> lineasNombre = dividirTexto(nombreCompleto, 20);
+
+                    // Primera línea: Cantidad + primera parte del nombre
+                    String primeraLinea = String.format("%-4d  %s", linea.getCantidad(), lineasNombre.get(0));
+                    g2d.drawString(primeraLinea, x, y);
+                    y += lineHeight;
+
+                    // Líneas adicionales del nombre (si las hay)
+                    for (int i = 1; i < lineasNombre.size(); i++) {
+                        g2d.drawString("      " + lineasNombre.get(i), x, y);
+                        y += lineHeight;
+                    }
+
+                    // Precio unitario y descuento
+                    BigDecimal precioConDescuento = linea.getPrecioConDescuento();
+                    String lineaPrecio = String.format("%.2f EUR", precioConDescuento);
+
+                    if (linea.getDescuento() > 0) {
+                        lineaPrecio += String.format(" (-%d%%)", linea.getDescuento());
+                    }
+
+                    g2d.setFont(fontSmall);
+                    g2d.drawString("      " + lineaPrecio, x, y);
+                    g2d.setFont(fontNormal);
+
+                    // Subtotal alineado a la derecha
+                    String subtotal = String.format("%.2f", linea.getTotalConIva());
+                    FontMetrics fm = g2d.getFontMetrics();
+                    int subtotalWidth = fm.stringWidth(subtotal);
+                    g2d.drawString(subtotal, x + width - subtotalWidth, y);
+
+                    y += lineHeight + 3;
+                }
+
+                y = drawLine(g2d, "-", x, y, width);
+                y += 5;
+
+                // ========== TOTALES ==========
+                y = drawTotalLine(g2d, "Base imponible:", facturaActual.getTotalSinIva(), x, y, width, fontNormal);
+                y = drawTotalLine(g2d, "IVA (" + config.getIvaGeneral() + "%):", facturaActual.getTotalIva(), x, y, width, fontNormal);
+
+                y += 3;
+                g2d.setFont(fontBold);
+                y = drawTotalLine(g2d, "TOTAL:", facturaActual.getTotalConIva(), x, y, width, fontBold);
+                y += 3;
+
+                g2d.setFont(fontNormal);
+                y = drawLine(g2d, "=", x, y, width);
+                y += lineHeight;
+
+                // ========== PIE ==========
+                y = drawCenteredText(g2d, "Articulos: " + facturaActual.getLineas().size(), x, y, width);
+                y += lineHeight;
+                y = drawCenteredText(g2d, "¡Gracias por su compra!", x, y, width);
+                y = drawCenteredText(g2d, "Vuelva pronto", x, y, width);
+
+                System.out.println("✓ Ticket generado correctamente");
+
+            } catch (Exception e) {
+                System.err.println("❌ Error: " + e.getMessage());
+                e.printStackTrace();
+                throw new PrinterException("Error al generar ticket: " + e.getMessage());
             }
 
-            String subtotal = String.format("%.2f€", linea.getTotalConIva());
-
-            escpos.writeLF(normal, formatoPrecioSubtotal(lineaPrecio, subtotal));
-
-            escpos.feed(1);
+            return PAGE_EXISTS;
         }
 
-        escpos.writeLF(normal, linea(32, "-"));
-        escpos.feed(1);
+        private List<String> dividirTexto(String texto, int maxCaracteres) {
+            List<String> lineas = new ArrayList<>();
 
-        // ========== TOTALES ==========
-        escpos.writeLF(normal, formatoTotal("Base imponible:",
-                String.format("%.2f€", factura.getTotalSinIva())));
+            if (texto.length() <= maxCaracteres) {
+                lineas.add(texto);
+                return lineas;
+            }
 
-        escpos.writeLF(normal, formatoTotal("IVA (" + config.getIvaGeneral() + "%):",
-                String.format("%.2f€", factura.getTotalIva())));
+            String[] palabras = texto.split(" ");
+            StringBuilder lineaActual = new StringBuilder();
 
-        escpos.feed(1);
-        escpos.writeLF(negrita, formatoTotal("TOTAL:",
-                String.format("%.2f€", factura.getTotalConIva())));
+            for (String palabra : palabras) {
+                if (lineaActual.length() + palabra.length() + 1 <= maxCaracteres) {
+                    if (lineaActual.length() > 0) {
+                        lineaActual.append(" ");
+                    }
+                    lineaActual.append(palabra);
+                } else {
+                    if (lineaActual.length() > 0) {
+                        lineas.add(lineaActual.toString());
+                        lineaActual = new StringBuilder(palabra);
+                    } else {
+                        lineas.add(palabra.substring(0, maxCaracteres));
+                        lineaActual = new StringBuilder(palabra.substring(maxCaracteres));
+                    }
+                }
+            }
 
-        escpos.feed(1);
-        escpos.writeLF(centrado, linea(32, "="));
-        escpos.feed(1);
+            if (lineaActual.length() > 0) {
+                lineas.add(lineaActual.toString());
+            }
 
-        // ========== PIE DE PÁGINA ==========
-        escpos.writeLF(centrado, "Artículos: " + factura.getLineas().size());
-        escpos.feed(1);
-        escpos.writeLF(centrado, "¡Gracias por su compra!");
-        escpos.writeLF(centrado, "¡Vuelva pronto!");
+            return lineas;
+        }
 
-        escpos.feed(4); // Espacio para cortar
-        escpos.cut(EscPos.CutMode.FULL);
-    }
+        private int drawCenteredText(Graphics2D g2d, String text, int x, int y, int width) {
+            FontMetrics fm = g2d.getFontMetrics();
+            int textWidth = fm.stringWidth(text);
+            int xCentered = x + (width - textWidth) / 2;
+            g2d.drawString(text, Math.max(x, xCentered), y);
+            return y + 14;
+        }
 
-    // ===== MÉTODOS AUXILIARES DE FORMATO =====
+        private int drawLine(Graphics2D g2d, String caracter, int x, int y, int width) {
+            StringBuilder linea = new StringBuilder();
+            int numCaracteres = width / 6;
+            for (int i = 0; i < numCaracteres; i++) {
+                linea.append(caracter);
+            }
+            g2d.drawString(linea.toString(), x, y);
+            return y + 14;
+        }
 
-    private String linea(int longitud, String caracter) {
-        return caracter.repeat(longitud);
-    }
+        private int drawTotalLine(Graphics2D g2d, String concepto, BigDecimal importe, int x, int y, int width, Font font) {
+            g2d.setFont(font);
+            g2d.drawString(concepto, x, y);
 
-    private String formatoLinea(String col1, String col2, String col3) {
-        // Formato: "CANT PRODUCTO            IMPORTE"
-        // Ancho: 4 + 18 + 10 = 32 caracteres
-        return String.format("%-4s %-18s %8s", col1, col2, col3);
-    }
+            String importeStr = String.format("%.2f EUR", importe);
+            FontMetrics fm = g2d.getFontMetrics();
+            int importeWidth = fm.stringWidth(importeStr);
+            g2d.drawString(importeStr, x + width - importeWidth, y);
 
-    private String formatoCantidadNombre(String cantidad, String nombre) {
-        // Formato: "2    Pan de molde"
-        return String.format("%-4s %s", cantidad, nombre);
-    }
-
-    private String formatoPrecioSubtotal(String precio, String subtotal) {
-        // Formato: "  12.50€              25.00€"
-        return String.format("%-22s %8s", precio, subtotal);
-    }
-
-    private String formatoTotal(String concepto, String importe) {
-        // Formato: "Base imponible:           45.50€"
-        int espacios = 32 - concepto.length() - importe.length();
-        return concepto + " ".repeat(Math.max(1, espacios)) + importe;
+            return y + 14;
+        }
     }
 }

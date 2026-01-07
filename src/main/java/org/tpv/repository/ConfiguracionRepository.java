@@ -29,6 +29,7 @@ public class ConfiguracionRepository {
                 config.setCodigoPostal(rs.getString("codigo_postal"));
                 config.setTelefono(rs.getString("telefono"));
                 config.setCif(rs.getString("cif"));
+                config.setNif(rs.getString("nif"));
                 config.setEmail(rs.getString("email"));
                 return config;
             }
@@ -51,6 +52,7 @@ public class ConfiguracionRepository {
                 codigo_postal = ?,
                 telefono = ?,
                 cif = ?,
+                nif = ?,
                 email = ?
             WHERE id = 1
         """;
@@ -65,7 +67,8 @@ public class ConfiguracionRepository {
             ps.setString(5, config.getCodigoPostal());
             ps.setString(6, config.getTelefono());
             ps.setString(7, config.getCif());
-            ps.setString(8, config.getEmail());
+            ps.setString(8, config.getNif());
+            ps.setString(9, config.getEmail());
 
             ps.executeUpdate();
             System.out.println("✓ Configuración actualizada en BD");

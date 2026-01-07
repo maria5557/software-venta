@@ -59,31 +59,32 @@ public class DatabaseManager {
                     precio_unitario REAL,
                     cantidad INTEGER,
                     iva_aplicado INTEGER,
+                    descuento INTEGER DEFAULT 0,
                     FOREIGN KEY (factura_id) REFERENCES factura(id)
                 )
             """);
 
-            // Crear tabla configuracion
+            // Crear tabla configuracion (nueva)
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS configuracion (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     iva_general INTEGER DEFAULT 21,
-                    nombre_tienda TEXT,
-                    direccion TEXT,
-                    ciudad TEXT,
-                    codigo_postal TEXT,
-                    telefono TEXT,
-                    cif TEXT ,
-                    email TEXT 
+                    nombre_tienda TEXT DEFAULT 'MI TIENDA',
+                    direccion TEXT DEFAULT 'Calle Principal 123',
+                    ciudad TEXT DEFAULT 'Ciudad',
+                    codigo_postal TEXT DEFAULT '11000',
+                    telefono TEXT DEFAULT '956 123 456',
+                    cif TEXT DEFAULT 'B12345678',
+                    nif TEXT DEFAULT '12345678X',
+                    email TEXT DEFAULT 'info@mitienda.com'
                 )
             """);
 
             // Insertar configuración por defecto si no existe
             stmt.execute("""
-                INSERT OR IGNORE INTO configuracion (id, iva_general, nombre_tienda, direccion, ciudad, codigo_postal, telefono, cif, email)
-                VALUES (1, 21, 'ALMADENA TELEFONIA', 'AV GRANADA 5', 'JAÉN', '23003', '953 474 840', 'B12345678', 'almadenashop786@gmail.com')
+                INSERT OR IGNORE INTO configuracion (id, iva_general, nombre_tienda, direccion, ciudad, codigo_postal, telefono, cif, nif, email)
+                VALUES (1, 21, 'MI TIENDA', 'Calle Principal 123', 'Ciudad', '11000', '956 123 456', 'B12345678', '12345678X', 'info@mitienda.com')
             """);
-
 
             System.out.println("✓ Base de datos SQLite inicializada correctamente");
             System.out.println("✓ Archivo de base de datos: data/tpv.db");

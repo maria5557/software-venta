@@ -24,6 +24,7 @@ import org.tpv.service.VentaService;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 public class VentaController {
@@ -36,6 +37,10 @@ public class VentaController {
     @FXML private Button btnEliminar;
     @FXML private Button btnNuevaVenta;
     @FXML private Button btnCobrar;
+    @FXML private Label lblCantidadArticulos;
+    @FXML private Label lblUsuario;
+    @FXML private Label lblFechaHora;
+
 
     @FXML private TableView<LineaFactura> tablaTicket;
     @FXML private TableColumn<LineaFactura, String> colCodigo;
@@ -83,6 +88,17 @@ public class VentaController {
             // Focus en el campo de código
             txtCodigoBarra.requestFocus();
 
+            iniciarReloj();
+
+            // Si lblUsuario existe, establecer el nombre de usuario
+            if (lblUsuario != null) {
+                lblUsuario.setText("Usuario: Admin");
+            }
+
+            // ===== OPCIONAL: AÑADIR ATAJOS DE TECLADO =====
+            // Añadir al final del método initialize():
+            configurarAtajosTeclado();
+
             System.out.println("✓ VentaController inicializado correctamente");
 
         } catch (Exception e) {
@@ -92,6 +108,30 @@ public class VentaController {
                     "No se pudo cargar la configuración: " + e.getMessage());
         }
     }
+
+    /**
+     * Inicia un hilo para actualizar la fecha y hora cada segundo
+     */
+    private void iniciarReloj() {
+        Thread reloj = new Thread(() -> {
+            while (true) {
+                try {
+                    javafx.application.Platform.runLater(() -> {
+                        if (lblFechaHora != null) {
+                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+                            lblFechaHora.setText(java.time.LocalDateTime.now().format(formatter));
+                        }
+                    });
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        });
+        reloj.setDaemon(true);
+        reloj.start();
+    }
+
 
     private void configurarTabla() {
         // ⭐ HACER LA TABLA COMPLETAMENTE EDITABLE ⭐
@@ -671,6 +711,15 @@ public class VentaController {
 
         actualizarTotales(factura);
 
+        // Actualizar contador de artículos
+        int totalArticulos = factura.getLineas().stream()
+                .mapToInt(LineaFactura::getCantidad)
+                .sum();
+
+        if (lblCantidadArticulos != null) {
+            lblCantidadArticulos.setText(totalArticulos + " artículo" + (totalArticulos != 1 ? "s" : ""));
+        }
+
         tablaTicket.refresh();
     }
 
@@ -694,5 +743,13 @@ public class VentaController {
         alert.setHeaderText(null);
         alert.setContentText(mensaje);
         alert.showAndWait();
+    }
+
+    /**
+     * Configura los atajos de teclado para acciones rápidas
+     */
+    private void configurarAtajosTeclado() {
+        // Este método se puede implementar más adelante si quieres añadir
+        // atajos de teclado como F1, F2, etc.
     }
 }
