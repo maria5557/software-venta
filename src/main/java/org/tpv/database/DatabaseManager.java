@@ -36,15 +36,50 @@ public class DatabaseManager {
                 )
             """);
 
+            // Crear tabla cliente
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS cliente (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dni TEXT UNIQUE NOT NULL,
+                    nombre TEXT NOT NULL,
+                    telefono TEXT,
+                    direccion TEXT,
+                    email TEXT
+                )
+            """);
+
+            // Crear tabla empleado
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS empleado (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nombre TEXT NOT NULL,
+                    usuario TEXT UNIQUE NOT NULL,
+                    password TEXT
+                )
+            """);
+
+            // Insertar empleado por defecto
+            stmt.execute("""
+                INSERT OR IGNORE INTO empleado (id, nombre, usuario, password)
+                VALUES (1, 'Ahmed', 'admin', '')
+            """);
+
             // Crear tabla factura
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS factura (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     numero_factura TEXT,
                     fecha TEXT NOT NULL,
+                    cliente_id INTEGER,
+                    cliente_nombre TEXT,
+                    cliente_dni TEXT,
+                    empleado_id INTEGER,
+                    empleado_nombre TEXT,
                     total_sin_iva REAL,
                     total_iva REAL,
-                    total_con_iva REAL
+                    total_con_iva REAL,
+                    FOREIGN KEY (cliente_id) REFERENCES cliente(id),
+                    FOREIGN KEY (empleado_id) REFERENCES empleado(id)
                 )
             """);
 

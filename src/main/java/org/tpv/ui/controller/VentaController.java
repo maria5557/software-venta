@@ -14,9 +14,11 @@ import javafx.scene.layout.GridPane;
 import javafx.util.converter.BigDecimalStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 import org.tpv.config.Configuracion;
+import org.tpv.domain.Cliente;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
 import org.tpv.domain.Producto;
+import org.tpv.repository.ClienteRepository;
 import org.tpv.repository.ConfiguracionRepository;
 import org.tpv.service.ImpresoraService;
 import org.tpv.service.ProductoService;
@@ -25,6 +27,7 @@ import org.tpv.service.VentaService;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
 
 public class VentaController {
@@ -53,6 +56,8 @@ public class VentaController {
     @FXML private Label lblTotalSinIva;
     @FXML private Label lblIva;
     @FXML private Label lblTotal;
+    @FXML private Label lblClienteActual;
+    @FXML private Button btnSeleccionarCliente;
 
     // ===== SERVICIOS Y DATOS =====
     private ProductoService productoService;
@@ -60,6 +65,8 @@ public class VentaController {
     private Configuracion config;
     private ImpresoraService impresoraService;
     private ConfiguracionRepository configRepository;
+    private ClienteRepository clienteRepository;
+
 
     private ObservableList<LineaFactura> lineasObservables = FXCollections.observableArrayList();
 
@@ -72,6 +79,7 @@ public class VentaController {
             // Inicializar repositorios y servicios
             productoService = new ProductoService();
             configRepository = new ConfiguracionRepository();
+            clienteRepository = new ClienteRepository();
 
             // Cargar configuración desde la base de datos
             config = configRepository.obtenerConfiguracion();
@@ -93,6 +101,10 @@ public class VentaController {
             // Si lblUsuario existe, establecer el nombre de usuario
             if (lblUsuario != null) {
                 lblUsuario.setText("Usuario: Admin");
+            }
+            // Inicializar label de cliente
+            if (lblClienteActual != null) {
+                actualizarLabelCliente();
             }
 
             // ===== OPCIONAL: AÑADIR ATAJOS DE TECLADO =====
@@ -320,8 +332,22 @@ public class VentaController {
     private void onAñadirProducto() {
         String codigo = txtCodigoBarra.getText().trim();
 
+        // Si el campo está vacío, permitir crear producto sin código
         if (codigo.isEmpty()) {
-            mostrarAlerta("Campo vacío", "Por favor, introduce un código de barras");
+            try {
+                Producto producto = mostrarDialogoCrearProductoSinCodigo();
+                if (producto != null) {
+                    ventaService.añadirProducto(producto);
+                    System.out.println("✓ Producto añadido: " + producto.getNombre());
+                    actualizarVista();
+                }
+                txtCodigoBarra.clear();
+                txtCodigoBarra.requestFocus();
+            } catch (SQLException e) {
+                mostrarError("Error de base de datos",
+                        "No se pudo procesar el producto: " + e.getMessage());
+                e.printStackTrace();
+            }
             return;
         }
 
@@ -353,6 +379,7 @@ public class VentaController {
             e.printStackTrace();
         }
     }
+
 
     // ===== EVENTO: INCREMENTAR CANTIDAD (+1) =====
     @FXML
@@ -522,6 +549,101 @@ public class VentaController {
         return resultado.orElse(null);
     }
 
+    /**
+     * Muestra diálogo para crear producto sin código de barras
+     */
+    private Producto mostrarDialogoCrearProductoSinCodigo() throws SQLException {
+        Dialog<Producto> dialog = new Dialog<>();
+        dialog.setTitle("Crear producto sin código");
+        dialog.setHeaderText("Introduce los datos del producto");
+
+        ButtonType btnCrear = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnCrear, btnCancelar);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
+
+        TextField txtCodigo = new TextField();
+        txtCodigo.setPromptText("Opcional - Código o referencia");
+
+        TextField txtNombre = new TextField();
+        txtNombre.setPromptText("Nombre del producto");
+
+        TextField txtPrecio = new TextField();
+        txtPrecio.setPromptText("Precio con IVA");
+        txtPrecio.setText("0.00");
+
+        grid.add(new Label("Código:"), 0, 0);
+        grid.add(txtCodigo, 1, 0);
+        grid.add(new Label("Nombre:*"), 0, 1);
+        grid.add(txtNombre, 1, 1);
+        grid.add(new Label("Precio:*"), 0, 2);
+        grid.add(txtPrecio, 1, 2);
+
+        dialog.getDialogPane().setContent(grid);
+
+        Node botonCrear = dialog.getDialogPane().lookupButton(btnCrear);
+        botonCrear.setDisable(true);
+
+        // VALIDACIÓN EN TIEMPO REAL
+        ChangeListener<String> validador = (obs, oldVal, newVal) -> {
+            String nombre = txtNombre.getText().trim();
+            String precioStr = txtPrecio.getText().trim().replace(",", ".");
+
+            boolean nombreValido = !nombre.isEmpty();
+            boolean precioValido;
+
+            try {
+                BigDecimal precio = new BigDecimal(precioStr);
+                precioValido = precio.compareTo(BigDecimal.ZERO) > 0;
+            } catch (Exception e) {
+                precioValido = false;
+            }
+
+            botonCrear.setDisable(!(nombreValido && precioValido));
+        };
+        txtNombre.textProperty().addListener(validador);
+        txtPrecio.textProperty().addListener(validador);
+
+        javafx.application.Platform.runLater(() -> txtNombre.requestFocus());
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == btnCrear) {
+                try {
+                    String codigo = txtCodigo.getText().trim();
+                    String nombre = txtNombre.getText().trim();
+                    String precioStr = txtPrecio.getText().trim().replace(",", ".");
+
+                    // Si no hay código, generar uno automático
+                    if (codigo.isEmpty()) {
+                        codigo = "PROD-" + System.currentTimeMillis();
+                    }
+
+                    BigDecimal precio = new BigDecimal(precioStr);
+
+                    Producto nuevoProducto = productoService.crearProducto(codigo, nombre, precio);
+                    System.out.println("✓ Producto creado: " + nuevoProducto.getNombre()
+                            + " - " + nuevoProducto.getPrecioBase() + "€");
+
+                    return nuevoProducto;
+
+                } catch (SQLException e) {
+                    mostrarError("Error al crear producto", e.getMessage());
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+            return null;
+        });
+
+        Optional<Producto> resultado = dialog.showAndWait();
+        return resultado.orElse(null);
+    }
+
+
     // ===== EVENTO: NUEVA VENTA =====
     @FXML
     private void onNuevaVenta() {
@@ -559,12 +681,21 @@ public class VentaController {
         // ACTUALIZAR PRODUCTOS EN LA BD CON LOS CAMBIOS
         actualizarProductosEnBD(factura);
 
+        // ACTUALIZAR CLIENTE EN LA BD SI HUBO CAMBIOS
+        actualizarClienteEnBD();
+
         // MOSTRAR DIÁLOGO DE CONFIRMACIÓN CON OPCIÓN DE IMPRIMIR
         Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
         confirmacion.setTitle("Cobro realizado");
         confirmacion.setHeaderText("✓ Venta finalizada correctamente");
+
+        String clienteInfo = factura.getClienteNombre() != null ?
+                "\nCliente: " + factura.getClienteNombre() : "";
+
         confirmacion.setContentText(String.format(
                 """
+                ═══════════════════════════════
+                Factura: %s%s
                 ═══════════════════════════════
                 Base imponible: %.2f€
                 IVA (21%%):      %.2f€
@@ -576,6 +707,8 @@ public class VentaController {
                 
                 ¿Deseas imprimir el ticket?
                 """,
+                factura.getNumeroFactura(),
+                clienteInfo,
                 factura.getTotalSinIva(),
                 factura.getTotalIva(),
                 factura.getTotalConIva(),
@@ -702,6 +835,269 @@ public class VentaController {
 
     // ===== MÉTODOS AUXILIARES =====
 
+    /**
+     * Abre el diálogo para buscar y seleccionar un cliente
+     */
+    @FXML
+    private void onSeleccionarCliente() {
+        try {
+            // Crear diálogo de opciones
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Seleccionar Cliente");
+            alert.setHeaderText("¿Qué deseas hacer?");
+
+            ButtonType btnBuscar = new ButtonType("Buscar cliente");
+            ButtonType btnNuevo = new ButtonType("Nuevo cliente");
+            ButtonType btnContado = new ButtonType("Cliente al contado");
+            ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+            alert.getButtonTypes().setAll(btnBuscar, btnNuevo, btnContado, btnCancelar);
+
+            Optional<ButtonType> resultado = alert.showAndWait();
+
+            if (resultado.isPresent()) {
+                if (resultado.get() == btnBuscar) {
+                    buscarCliente();
+                } else if (resultado.get() == btnNuevo) {
+                    crearNuevoCliente();
+                } else if (resultado.get() == btnContado) {
+                    ventaService.asignarCliente(Cliente.clientePorDefecto());
+                    actualizarLabelCliente();
+                }
+            }
+
+        } catch (Exception e) {
+            mostrarError("Error", "No se pudo gestionar el cliente: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Busca un cliente por DNI o nombre
+     */
+    private void buscarCliente() throws SQLException {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle("Buscar Cliente");
+        dialog.setHeaderText("Introduce el DNI o nombre del cliente");
+        dialog.setContentText("Búsqueda:");
+
+        Optional<String> resultado = dialog.showAndWait();
+
+        if (resultado.isPresent() && !resultado.get().trim().isEmpty()) {
+            String busqueda = resultado.get().trim();
+
+            // Intentar buscar por DNI primero
+            Cliente cliente = clienteRepository.findByDni(busqueda);
+
+            // Si no se encuentra por DNI, buscar por nombre
+            if (cliente == null) {
+                List<Cliente> clientes = clienteRepository.findByNombre(busqueda);
+
+                if (clientes.isEmpty()) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("No encontrado");
+                    alert.setHeaderText("Cliente no encontrado");
+                    alert.setContentText("¿Deseas crear un nuevo cliente?");
+
+                    ButtonType btnSi = new ButtonType("Sí");
+                    ButtonType btnNo = new ButtonType("No", ButtonBar.ButtonData.CANCEL_CLOSE);
+                    alert.getButtonTypes().setAll(btnSi, btnNo);
+
+                    Optional<ButtonType> respuesta = alert.showAndWait();
+                    if (respuesta.isPresent() && respuesta.get() == btnSi) {
+                        crearNuevoCliente();
+                    }
+                    return;
+                }
+
+                // Si hay múltiples resultados, mostrar lista para elegir
+                if (clientes.size() > 1) {
+                    List<String> opciones = clientes.stream()
+                            .map(c -> c.getNombre() + " - " + c.getDni())
+                            .toList();
+
+                    ChoiceDialog<String> choiceDialog = new ChoiceDialog<>(opciones.get(0), opciones);
+                    choiceDialog.setTitle("Seleccionar Cliente");
+                    choiceDialog.setHeaderText("Se encontraron múltiples clientes");
+                    choiceDialog.setContentText("Elige uno:");
+
+                    Optional<String> seleccion = choiceDialog.showAndWait();
+                    if (seleccion.isPresent()) {
+                        int index = opciones.indexOf(seleccion.get());
+                        cliente = clientes.get(index);
+                    } else {
+                        return;
+                    }
+                } else {
+                    cliente = clientes.get(0);
+                }
+            }
+
+            // Asignar el cliente a la venta
+            ventaService.asignarCliente(cliente);
+            actualizarLabelCliente();
+
+            System.out.println("✓ Cliente asignado: " + cliente.getNombre());
+        }
+    }
+
+    /**
+     * Crea un nuevo cliente con validación en tiempo real
+     */
+    private void crearNuevoCliente() throws SQLException {
+        Dialog<Cliente> dialog = new Dialog<>();
+        dialog.setTitle("Nuevo Cliente");
+        dialog.setHeaderText("Introduce los datos del nuevo cliente");
+
+        ButtonType btnGuardar = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnGuardar, btnCancelar);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
+
+        TextField txtDni = new TextField();
+        txtDni.setPromptText("Opcional");
+
+        TextField txtNombre = new TextField();
+        txtNombre.setPromptText("Nombre completo");
+
+        TextField txtTelefono = new TextField();
+        txtTelefono.setPromptText("Opcional");
+
+        TextField txtDireccion = new TextField();
+        txtDireccion.setPromptText("Opcional");
+
+        TextField txtEmail = new TextField();
+        txtEmail.setPromptText("Opcional");
+
+        grid.add(new Label("DNI/NIF:"), 0, 0);
+        grid.add(txtDni, 1, 0);
+        grid.add(new Label("Nombre:*"), 0, 1);
+        grid.add(txtNombre, 1, 1);
+        grid.add(new Label("Teléfono:"), 0, 2);
+        grid.add(txtTelefono, 1, 2);
+        grid.add(new Label("Dirección:"), 0, 3);
+        grid.add(txtDireccion, 1, 3);
+        grid.add(new Label("Email:"), 0, 4);
+        grid.add(txtEmail, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+
+        // Deshabilitar botón de guardar inicialmente
+        Node botonGuardar = dialog.getDialogPane().lookupButton(btnGuardar);
+        botonGuardar.setDisable(true);
+
+        // VALIDACIÓN EN TIEMPO REAL - Solo el nombre es obligatorio
+        ChangeListener<String> validador = (obs, oldVal, newVal) -> {
+            String nombre = txtNombre.getText().trim();
+            boolean nombreValido = !nombre.isEmpty();
+            botonGuardar.setDisable(!nombreValido);
+        };
+        txtNombre.textProperty().addListener(validador);
+
+        javafx.application.Platform.runLater(() -> txtNombre.requestFocus());
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == btnGuardar) {
+                String dni = txtDni.getText().trim();
+                String nombre = txtNombre.getText().trim();
+
+                if (nombre.isEmpty()) {
+                    mostrarAlerta("Datos incompletos", "El nombre es obligatorio");
+                    return null;
+                }
+
+                try {
+                    // Si se proporciona DNI, verificar si ya existe
+                    if (!dni.isEmpty()) {
+                        Cliente existente = clienteRepository.findByDni(dni);
+                        if (existente != null) {
+                            mostrarAlerta("DNI duplicado", "Ya existe un cliente con este DNI");
+                            return null;
+                        }
+                    } else {
+                        // Si no hay DNI, generar uno automático único
+                        dni = "CLI-" + System.currentTimeMillis();
+                    }
+
+                    Cliente nuevoCliente = new Cliente(
+                            null,
+                            dni,
+                            nombre,
+                            txtTelefono.getText().trim(),
+                            txtDireccion.getText().trim(),
+                            txtEmail.getText().trim()
+                    );
+
+                    clienteRepository.save(nuevoCliente);
+                    System.out.println("✓ Cliente creado: " + nuevoCliente.getNombre());
+
+                    return nuevoCliente;
+
+                } catch (SQLException e) {
+                    mostrarError("Error al crear cliente", e.getMessage());
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+            return null;
+        });
+
+        Optional<Cliente> resultado = dialog.showAndWait();
+        if (resultado.isPresent()) {
+            ventaService.asignarCliente(resultado.get());
+            actualizarLabelCliente();
+        }
+    }
+
+    /**
+     * Actualiza el label que muestra el cliente actual
+     */
+    private void actualizarLabelCliente() {
+        if (lblClienteActual != null) {
+            Cliente cliente = ventaService.getClienteActual();
+            if (cliente.esClientePorDefecto()) {
+                lblClienteActual.setText("Cliente: AL CONTADO");
+                lblClienteActual.setStyle("-fx-text-fill: #95a5a6;");
+            } else {
+                lblClienteActual.setText("Cliente: " + cliente.getNombre());
+                lblClienteActual.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
+            }
+        }
+    }
+
+    /**
+     * Actualiza el cliente en la BD si se modificaron sus datos durante la venta
+     */
+    private void actualizarClienteEnBD() {
+        try {
+            Cliente clienteActual = ventaService.getClienteActual();
+
+            // Solo actualizar si no es cliente por defecto
+            if (!clienteActual.esClientePorDefecto() && clienteActual.getId() != null) {
+                Cliente clienteBD = clienteRepository.findByDni(clienteActual.getDni());
+
+                if (clienteBD != null) {
+                    // Verificar si hubo cambios
+                    boolean cambios = !clienteBD.getNombre().equals(clienteActual.getNombre()) ||
+                            !clienteBD.getTelefono().equals(clienteActual.getTelefono()) ||
+                            !clienteBD.getDireccion().equals(clienteActual.getDireccion()) ||
+                            !clienteBD.getEmail().equals(clienteActual.getEmail());
+
+                    if (cambios) {
+                        clienteRepository.update(clienteActual);
+                        System.out.println("✓ Cliente actualizado en BD");
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("⚠ Error al actualizar cliente: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
     private void actualizarVista() {
         Factura factura = ventaService.finalizarVenta();

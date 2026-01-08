@@ -148,25 +148,49 @@ public class ImpresoraService {
                 y = drawLine(g2d, "=", x, y, width);
                 y += 5;
 
-                // ========== FECHA ==========
+                // ========== FECHA Y NÚMERO ==========
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
                 String fechaFormateada = facturaActual.getFecha().format(formatter);
 
+                g2d.setFont(fontBold);
+                g2d.drawString("Factura Simplificada", x, y);
+                y += lineHeight;
+                g2d.setFont(fontNormal);
+
                 if (facturaActual.getNumeroFactura() != null) {
-                    g2d.drawString("Factura: " + facturaActual.getNumeroFactura(), x, y);
+                    g2d.drawString("Nº: " + facturaActual.getNumeroFactura(), x, y);
                     y += lineHeight;
                 }
 
                 g2d.drawString("Fecha: " + fechaFormateada, x, y);
-                y += lineHeight + 3;
+                y += lineHeight;
 
+                // Cliente
+                if (facturaActual.getClienteNombre() != null) {
+                    g2d.drawString("Cliente: " + facturaActual.getClienteNombre(), x, y);
+                    y += lineHeight;
+                }
+
+                // DNI del cliente si existe
+                if (facturaActual.getClienteDni() != null && !facturaActual.getClienteDni().isEmpty()) {
+                    g2d.drawString("N.I.F.: " + facturaActual.getClienteDni(), x, y);
+                    y += lineHeight;
+                }
+
+                // Empleado
+                if (facturaActual.getEmpleadoNombre() != null) {
+                    g2d.drawString("Vendedor: " + facturaActual.getEmpleadoNombre(), x, y);
+                    y += lineHeight;
+                }
+
+                y += 3;
                 y = drawLine(g2d, "-", x, y, width);
                 y += 5;
 
                 // ========== PRODUCTOS ==========
                 g2d.setFont(fontBold);
-                g2d.drawString("CANT  PRODUCTO", x, y);
-                g2d.drawString("TOTAL", x + width - 45, y);
+                String headerLinea = String.format("%-22s %6s %8s", "ARTICUL", "UD.", "TOTAL");
+                g2d.drawString(headerLinea, x, y);
                 y += lineHeight;
                 g2d.setFont(fontNormal);
                 y = drawLine(g2d, "-", x, y, width);

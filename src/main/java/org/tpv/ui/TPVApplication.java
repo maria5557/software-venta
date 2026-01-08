@@ -28,7 +28,7 @@ public class TPVApplication extends Application {
 
         // 2. Cargar la vista FXML
         FXMLLoader fxmlLoader = new FXMLLoader(
-                TPVApplication.class.getResource("/org/tpv/ui/view/tpv.fxml")
+                TPVApplication.class.getResource("/org/tpv/ui/view/main.fxml")
         );
 
         Scene scene = new Scene(fxmlLoader.load());

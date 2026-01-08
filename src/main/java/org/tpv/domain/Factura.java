@@ -16,6 +16,15 @@ public class Factura {
     private String numeroFactura;
     private LocalDateTime fecha;
 
+    // Información del cliente
+    private Long clienteId;
+    private String clienteNombre;
+    private String clienteDni;
+
+    // Información del empleado
+    private Long empleadoId;
+    private String empleadoNombre;
+
     private List<LineaFactura> lineas = new ArrayList<>();
 
     private BigDecimal totalSinIva = BigDecimal.ZERO;

@@ -5,6 +5,8 @@ import org.tpv.domain.Producto;
 
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ProductoRepository {
 
@@ -65,6 +67,73 @@ public class ProductoRepository {
                 System.out.println("✓ Producto actualizado en BD: " + producto.getNombre());
             } else {
                 System.out.println("⚠ No se encontró el producto para actualizar: " + producto.getCodigoBarra());
+            }
+        }
+    }
+
+    public List<Producto> findAll() throws SQLException {
+        List<Producto> productos = new ArrayList<>();
+
+        String sql = "SELECT * FROM producto ORDER BY nombre";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                Producto producto = new Producto(
+                        rs.getLong("id"),
+                        rs.getString("codigo_barra"),
+                        rs.getString("nombre"),
+                        rs.getBigDecimal("precio_base")
+                );
+                productos.add(producto);
+            }
+        }
+
+        return productos;
+    }
+
+    public List<Producto> findByNombre(String nombre) throws SQLException {
+        List<Producto> productos = new ArrayList<>();
+
+        String sql = "SELECT * FROM producto WHERE LOWER(nombre) LIKE ? ORDER BY nombre";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, "%" + nombre.toLowerCase() + "%");
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Producto producto = new Producto(
+                            rs.getLong("id"),
+                            rs.getString("codigo_barra"),
+                            rs.getString("nombre"),
+                            rs.getBigDecimal("precio_base")
+                    );
+                    productos.add(producto);
+                }
+            }
+        }
+
+        return productos;
+    }
+
+    public void delete(String codigoBarra) throws SQLException {
+        String sql = "DELETE FROM producto WHERE codigo_barra = ?";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, codigoBarra);
+
+            int filas = ps.executeUpdate();
+
+            if (filas > 0) {
+                System.out.println("✓ Producto eliminado: " + codigoBarra);
+            } else {
+                System.out.println("⚠ No se encontró el producto para eliminar: " + codigoBarra);
             }
         }
     }
