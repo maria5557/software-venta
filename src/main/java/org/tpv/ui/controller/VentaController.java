@@ -677,6 +677,16 @@ public class VentaController {
         }
 
         Factura factura = ventaService.finalizarVenta();
+        try {
+            ventaService.guardarVenta();
+            System.out.println("✓ Factura guardada en la BD: " + factura.getNumeroFactura());
+        } catch (SQLException e) {
+            mostrarError("Error al guardar la factura",
+                    "No se pudo guardar la venta en la base de datos:\n" + e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+
 
         // ACTUALIZAR PRODUCTOS EN LA BD CON LOS CAMBIOS
         actualizarProductosEnBD(factura);

@@ -10,7 +10,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
-import org.tpv.repository.FacturaRepository;
+import org.tpv.service.FacturaService;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -39,14 +39,14 @@ public class FacturasController {
     @FXML private Label lblTotalFacturas;
     @FXML private Label lblSumaTotal;
 
-    private FacturaRepository facturaRepository;
+    private FacturaService facturaService;
     private ObservableList<Factura> facturasObservables = FXCollections.observableArrayList();
 
     @FXML
     public void initialize() {
         System.out.println("✓ Inicializando FacturasController...");
 
-        facturaRepository = new FacturaRepository();
+        facturaService = new FacturaService();
 
         configurarTabla();
         cargarFacturas();
@@ -65,7 +65,7 @@ public class FacturasController {
                 new SimpleStringProperty(data.getValue().getNumeroFactura()));
 
         colFecha.setCellValueFactory(data -> {
-            LocalDateTime fecha = data.getValue().getFecha();
+            LocalDateTime fecha = data.getValue().getFechaEmision();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
             return new SimpleStringProperty(fecha.format(formatter));
         });
@@ -123,7 +123,7 @@ public class FacturasController {
         try {
             facturasObservables.clear();
 
-            List<Factura> facturas = facturaRepository.findAll();
+            List<Factura> facturas = facturaService.obtenerTodas();
             facturasObservables.addAll(facturas);
 
             actualizarEstadisticas();
@@ -149,7 +149,7 @@ public class FacturasController {
         try {
             facturasObservables.clear();
 
-            List<Factura> facturas = facturaRepository.findByFechaRango(
+            List<Factura> facturas = facturaService.buscarPorFechas(
                     fechaInicio != null ? fechaInicio.atStartOfDay() : null,
                     fechaFin != null ? fechaFin.atTime(23, 59, 59) : null
             );
@@ -183,7 +183,7 @@ public class FacturasController {
         try {
             facturasObservables.clear();
 
-            List<Factura> facturas = facturaRepository.findByCliente(busqueda);
+            List<Factura> facturas = facturaService.buscarPorCliente(busqueda);
             facturasObservables.addAll(facturas);
 
             actualizarEstadisticas();
@@ -225,7 +225,7 @@ public class FacturasController {
 
         int row = 0;
         grid.add(new Label("Fecha:"), 0, row);
-        grid.add(new Label(factura.getFecha().format(formatter)), 1, row++);
+        grid.add(new Label(factura.getFechaEmision().format(formatter)), 1, row++);
 
         grid.add(new Label("Cliente:"), 0, row);
         String cliente = factura.getClienteNombre() != null ? factura.getClienteNombre() : "AL CONTADO";

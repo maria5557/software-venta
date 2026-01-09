@@ -2,7 +2,9 @@ package org.tpv.service;
 
 import org.tpv.config.Configuracion;
 import org.tpv.domain.*;
+import org.tpv.repository.FacturaRepository;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -11,6 +13,8 @@ public class VentaService {
     private Factura facturaActual;
     private final Configuracion configuracion;
     private int contadorFacturas = 1;
+    private final FacturaRepository facturaRepository = new FacturaRepository();
+
 
     public VentaService(Configuracion configuracion) {
         this.configuracion = configuracion;
@@ -18,7 +22,7 @@ public class VentaService {
 
     public void iniciarVenta() {
         facturaActual = new Factura();
-        facturaActual.setFecha(LocalDateTime.now());
+        facturaActual.setFechaEmision(LocalDateTime.now());
 
         // Generar número de factura
         String numeroFactura = generarNumeroFactura();
@@ -34,6 +38,10 @@ public class VentaService {
         facturaActual.setClienteId(cliente.getId());
         facturaActual.setClienteNombre(cliente.getNombre());
         facturaActual.setClienteDni(cliente.getDni());
+    }
+
+    public void guardarVenta() throws SQLException {
+        facturaRepository.save(facturaActual);
     }
 
     private String generarNumeroFactura() {

@@ -14,7 +14,7 @@ public class Factura {
 
     private Long id;
     private String numeroFactura;
-    private LocalDateTime fecha;
+    private LocalDateTime fechaEmision;
 
     // Información del cliente
     private Long clienteId;

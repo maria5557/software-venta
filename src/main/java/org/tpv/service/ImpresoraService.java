@@ -150,7 +150,7 @@ public class ImpresoraService {
 
                 // ========== FECHA Y NÚMERO ==========
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-                String fechaFormateada = facturaActual.getFecha().format(formatter);
+                String fechaFormateada = facturaActual.getFechaEmision().format(formatter);
 
                 g2d.setFont(fontBold);
                 g2d.drawString("Factura Simplificada", x, y);

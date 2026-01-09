@@ -10,7 +10,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import org.tpv.domain.Cliente;
-import org.tpv.repository.ClienteRepository;
+import org.tpv.service.ClienteService;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -31,14 +31,14 @@ public class ClientesController {
 
     @FXML private Label lblTotalClientes;
 
-    private ClienteRepository clienteRepository;
+    private ClienteService clienteService;
     private ObservableList<Cliente> clientesObservables = FXCollections.observableArrayList();
 
     @FXML
     public void initialize() {
         System.out.println("✓ Inicializando ClientesController...");
 
-        clienteRepository = new ClienteRepository();
+        clienteService = new ClienteService();
 
         configurarTabla();
         cargarClientes();
@@ -100,7 +100,7 @@ public class ClientesController {
 
     private void cargarClientes() {
         try {
-            List<Cliente> clientes = clienteRepository.findAll();
+            List<Cliente> clientes = clienteService.obtenerTodos();
             clientesObservables.clear();
             clientesObservables.addAll(clientes);
 
@@ -125,13 +125,13 @@ public class ClientesController {
             clientesObservables.clear();
 
             // Buscar por DNI
-            Cliente clientePorDni = clienteRepository.findByDni(busqueda);
+            Cliente clientePorDni = clienteService.buscarPorDni(busqueda);
             if (clientePorDni != null) {
                 clientesObservables.add(clientePorDni);
             }
 
             // Buscar por nombre
-            List<Cliente> clientesPorNombre = clienteRepository.findByNombre(busqueda);
+            List<Cliente> clientesPorNombre = clienteService.buscarPorNombre(busqueda);
             for (Cliente c : clientesPorNombre) {
                 if (!clientesObservables.contains(c)) {
                     clientesObservables.add(c);
@@ -217,7 +217,7 @@ public class ClientesController {
 
                 try {
                     if (!dni.isEmpty()) {
-                        Cliente existente = clienteRepository.findByDni(dni);
+                        Cliente existente = clienteService.buscarPorDni(dni);
                         if (existente != null) {
                             mostrarAlerta("DNI duplicado", "Ya existe un cliente con este DNI");
                             return null;
@@ -226,16 +226,7 @@ public class ClientesController {
                         dni = "CLI-" + System.currentTimeMillis();
                     }
 
-                    Cliente nuevoCliente = new Cliente(
-                            null,
-                            dni,
-                            nombre,
-                            txtTelefono.getText().trim(),
-                            txtDireccion.getText().trim(),
-                            txtEmail.getText().trim()
-                    );
-
-                    clienteRepository.save(nuevoCliente);
+                    Cliente nuevoCliente = clienteService.crearCliente(dni,nombre,txtTelefono.getText().trim(),txtDireccion.getText().trim(),txtEmail.getText().trim());
                     System.out.println("✓ Cliente creado: " + nuevoCliente.getNombre());
 
                     return nuevoCliente;
@@ -317,7 +308,7 @@ public class ClientesController {
                     cliente.setDireccion(txtDireccion.getText().trim());
                     cliente.setEmail(txtEmail.getText().trim());
 
-                    clienteRepository.update(cliente);
+                    clienteService.actualizarCliente(cliente);
 
                     Alert info = new Alert(Alert.AlertType.INFORMATION);
                     info.setTitle("Cliente actualizado");
@@ -353,7 +344,7 @@ public class ClientesController {
         Optional<ButtonType> resultado = confirmacion.showAndWait();
         if (resultado.isPresent() && resultado.get() == ButtonType.OK) {
             try {
-                clienteRepository.delete(cliente.getDni());
+                clienteService.eliminarCliente(cliente.getDni());
 
                 Alert info = new Alert(Alert.AlertType.INFORMATION);
                 info.setTitle("Cliente eliminado");
