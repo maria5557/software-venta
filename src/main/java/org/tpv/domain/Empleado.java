@@ -5,17 +5,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Producto {
-
+public class Empleado {
     private Long id;
-    private String codigoBarra;
     private String nombre;
-    private BigDecimal precioBase; // precio con IVA
-    //private boolean activo;
+    private String usuario;
+    private String password;
+
+    // Empleado por defecto
+    public static Empleado empleadoPorDefecto() {
+        return new Empleado(1L, "Ahmed", "admin", "");
+    }
 }

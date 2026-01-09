@@ -14,7 +14,16 @@ public class Factura {
 
     private Long id;
     private String numeroFactura;
-    private LocalDateTime fecha;
+    private LocalDateTime fechaEmision;
+
+    // Información del cliente
+    private Long clienteId;
+    private String clienteNombre;
+    private String clienteDni;
+
+    // Información del empleado
+    private Long empleadoId;
+    private String empleadoNombre;
 
     private List<LineaFactura> lineas = new ArrayList<>();
 

@@ -12,4 +12,14 @@ import lombok.Setter;
 public class Configuracion {
     private int ivaGeneral; // 21
 
+    // ===== DATOS DE LA TIENDA PARA EL TICKET =====
+    private String nombreTienda;
+    private String direccion;
+    private String ciudad;
+    private String codigoPostal;
+    private String telefono;
+    private String cif;
+    private String nif;
+    private String email;
+
 }
