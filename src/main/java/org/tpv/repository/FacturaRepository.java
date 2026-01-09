@@ -46,11 +46,12 @@ public class FacturaRepository {
 
             int paramIndex = 1;
             if (fechaInicio != null) {
-                ps.setTimestamp(paramIndex++, Timestamp.valueOf(fechaInicio));
+                ps.setString(paramIndex++, fechaInicio.toString());
             }
             if (fechaFin != null) {
-                ps.setTimestamp(paramIndex++, Timestamp.valueOf(fechaFin));
+                ps.setString(paramIndex++, fechaFin.toString());
             }
+
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
