@@ -12,10 +12,23 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Versión DEFINITIVA del servicio de impresión.
+ * - Cabecera completa (CIF, NIF, Email).
+ * - Cliente con soporte para nombres largos (multilínea).
+ * - Lógica de descuentos condicional.
+ * - Ajustes de márgenes de seguridad para evitar cortes.
+ */
 public class ImpresoraService {
 
     private final Configuracion config;
     private Factura facturaActual;
+
+    private static final double ANCHO_PAPEL_PUNTOS = 138.0;
+    private static final int MARGEN_IZQUIERDO = 10;
+    private static final int MARGEN_DERECHO = 2;
+    private static final int ANCHO_IMPRIMIBLE = (int)(ANCHO_PAPEL_PUNTOS - MARGEN_IZQUIERDO - MARGEN_DERECHO);
+    private static final int MAX_CHARS_PER_LINE = 24;
 
     public ImpresoraService(Configuracion config) {
         this.config = config;
@@ -24,48 +37,33 @@ public class ImpresoraService {
     public String[] obtenerImpresorasDisponibles() {
         PrintService[] printServices = PrintServiceLookup.lookupPrintServices(null, null);
         String[] nombreImpresoras = new String[printServices.length];
-
-        System.out.println("=== IMPRESORAS DETECTADAS ===");
         for (int i = 0; i < printServices.length; i++) {
             nombreImpresoras[i] = printServices[i].getName();
-            System.out.println((i + 1) + ". " + nombreImpresoras[i]);
         }
-        System.out.println("============================");
-
         return nombreImpresoras;
     }
 
     private PrintService buscarImpresora(String nombreImpresora) {
         PrintService[] printServices = PrintServiceLookup.lookupPrintServices(null, null);
-
         for (PrintService service : printServices) {
             if (service.getName().equalsIgnoreCase(nombreImpresora)) {
                 return service;
             }
         }
-
         return null;
     }
 
     public void imprimirTicket(Factura factura, String nombreImpresora) throws Exception {
-
         this.facturaActual = factura;
-
         PrintService printService;
 
         if (nombreImpresora != null && !nombreImpresora.isEmpty()) {
             printService = buscarImpresora(nombreImpresora);
-            if (printService == null) {
-                throw new Exception("No se encontró la impresora: " + nombreImpresora);
-            }
+            if (printService == null) throw new Exception("No se encontró la impresora: " + nombreImpresora);
         } else {
             printService = PrintServiceLookup.lookupDefaultPrintService();
-            if (printService == null) {
-                throw new Exception("No hay impresora por defecto configurada");
-            }
+            if (printService == null) throw new Exception("No hay impresora por defecto");
         }
-
-        System.out.println("✓ Usando impresora: " + printService.getName());
 
         PrinterJob job = PrinterJob.getPrinterJob();
         job.setPrintService(printService);
@@ -73,22 +71,18 @@ public class ImpresoraService {
         PageFormat pageFormat = job.defaultPage();
         Paper paper = pageFormat.getPaper();
 
-        double width = 226;
-        double height = 800;
+        double width = ANCHO_PAPEL_PUNTOS;
+        double height = 1500;
 
         paper.setSize(width, height);
-        paper.setImageableArea(5, 5, width - 10, height - 10);
+        paper.setImageableArea(MARGEN_IZQUIERDO, 0, ANCHO_IMPRIMIBLE, height);
         pageFormat.setPaper(paper);
         pageFormat.setOrientation(PageFormat.PORTRAIT);
 
         job.setPrintable(new TicketPrintable(), pageFormat);
 
-        System.out.println("✓ Enviando a impresora...");
-
         try {
             job.print();
-            System.out.println("✓ Ticket enviado correctamente");
-            Thread.sleep(500);
         } catch (PrinterException e) {
             throw new Exception("Error al imprimir: " + e.getMessage(), e);
         }
@@ -98,238 +92,191 @@ public class ImpresoraService {
 
         @Override
         public int print(Graphics graphics, PageFormat pageFormat, int pageIndex) throws PrinterException {
-
-            if (pageIndex > 0) {
-                return NO_SUCH_PAGE;
-            }
+            if (pageIndex > 0) return NO_SUCH_PAGE;
 
             Graphics2D g2d = (Graphics2D) graphics;
             g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-            int x = 10;
-            int y = 20;
-            int lineHeight = 14;
-            int width = (int) pageFormat.getImageableWidth() - 20;
+            int x = (int) pageFormat.getImageableX();
+            int y = 15;
+            int lineHeight = 12;
+            int width = (int) pageFormat.getImageableWidth();
 
-            Font fontNormal = new Font("Monospaced", Font.PLAIN, 9);
-            Font fontBold = new Font("Monospaced", Font.BOLD, 9);
-            Font fontTitle = new Font("Monospaced", Font.BOLD, 12);
-            Font fontSmall = new Font("Monospaced", Font.PLAIN, 8);
+            Font fontNormal = new Font("Monospaced", Font.PLAIN, 8);
+            Font fontBold = new Font("Monospaced", Font.BOLD, 8);
+            Font fontTitle = new Font("Monospaced", Font.BOLD, 10);
+            Font fontSmall = new Font("Monospaced", Font.PLAIN, 7);
 
             g2d.setColor(Color.BLACK);
 
             try {
-                // ========== ENCABEZADO ==========
+                // ========== ENCABEZADO COMPLETO ==========
                 g2d.setFont(fontTitle);
                 y = drawCenteredText(g2d, config.getNombreTienda(), x, y, width);
-                y += 3;
 
-                g2d.setFont(fontNormal);
+                g2d.setFont(fontSmall);
                 y = drawCenteredText(g2d, config.getDireccion(), x, y, width);
-                y = drawCenteredText(g2d, config.getCodigoPostal() + " - " + config.getCiudad(), x, y, width);
+                y = drawCenteredText(g2d, config.getCodigoPostal() + " " + config.getCiudad(), x, y, width);
                 y = drawCenteredText(g2d, "Tel: " + config.getTelefono(), x, y, width);
 
+                // ⭐ CIF Y NIF RESTAURADOS ⭐
                 if (config.getCif() != null && !config.getCif().isEmpty()) {
                     y = drawCenteredText(g2d, "CIF: " + config.getCif(), x, y, width);
                 }
-
                 if (config.getNif() != null && !config.getNif().isEmpty()) {
                     y = drawCenteredText(g2d, "NIF: " + config.getNif(), x, y, width);
                 }
 
                 if (config.getEmail() != null && !config.getEmail().isEmpty()) {
-                    g2d.setFont(fontSmall);
                     y = drawCenteredText(g2d, config.getEmail(), x, y, width);
-                    g2d.setFont(fontNormal);
                 }
 
-                y += 5;
-                y = drawLine(g2d, "=", x, y, width);
-                y += 5;
+                y += 4;
+                y = drawLine(g2d, "=", x, y, width, MAX_CHARS_PER_LINE);
+                y += 4;
 
-                // ========== FECHA Y NÚMERO ==========
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-                String fechaFormateada = facturaActual.getFechaEmision().format(formatter);
-
+                // ========== INFO FACTURA ==========
                 g2d.setFont(fontBold);
-                g2d.drawString("Factura Simplificada", x, y);
-                y += lineHeight;
+                y = drawCenteredText(g2d, "FACTURA SIMPLIFICADA", x, y, width);
                 g2d.setFont(fontNormal);
 
                 if (facturaActual.getNumeroFactura() != null) {
-                    g2d.drawString("Nº: " + facturaActual.getNumeroFactura(), x, y);
+                    g2d.drawString("No: " + facturaActual.getNumeroFactura(), x, y);
                     y += lineHeight;
                 }
 
-                g2d.drawString("Fecha: " + fechaFormateada, x, y);
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+                g2d.drawString("Fecha: " + facturaActual.getFechaEmision().format(formatter), x, y);
                 y += lineHeight;
 
-                // Cliente
-                if (facturaActual.getClienteNombre() != null) {
-                    g2d.drawString("Cliente: " + facturaActual.getClienteNombre(), x, y);
+                // ⭐ CLIENTE CON SOPORTE MULTILÍNEA ⭐
+                String nombreCliente = (facturaActual.getClienteNombre() != null) ? facturaActual.getClienteNombre() : "AL CONTADO";
+                List<String> lineasCliente = dividirTexto("Cliente: " + nombreCliente, MAX_CHARS_PER_LINE);
+                for (String linea : lineasCliente) {
+                    g2d.drawString(linea, x, y);
                     y += lineHeight;
                 }
 
-                // DNI del cliente si existe
-                if (facturaActual.getClienteDni() != null && !facturaActual.getClienteDni().isEmpty()) {
-                    g2d.drawString("N.I.F.: " + facturaActual.getClienteDni(), x, y);
-                    y += lineHeight;
-                }
-
-                // Empleado
-                if (facturaActual.getEmpleadoNombre() != null) {
-                    g2d.drawString("Vendedor: " + facturaActual.getEmpleadoNombre(), x, y);
-                    y += lineHeight;
-                }
-
-                y += 3;
-                y = drawLine(g2d, "-", x, y, width);
-                y += 5;
+                y += 4;
+                y = drawLine(g2d, "-", x, y, width, MAX_CHARS_PER_LINE);
+                y += 4;
 
                 // ========== PRODUCTOS ==========
                 g2d.setFont(fontBold);
-                String headerLinea = String.format("%-22s %6s %8s", "ARTICUL", "UD.", "TOTAL");
-                g2d.drawString(headerLinea, x, y);
+                g2d.drawString("CANT ARTICULO       TOTAL", x, y);
                 y += lineHeight;
                 g2d.setFont(fontNormal);
-                y = drawLine(g2d, "-", x, y, width);
+                y = drawLine(g2d, "-", x, y, width, MAX_CHARS_PER_LINE);
 
                 for (LineaFactura linea : facturaActual.getLineas()) {
-                    y += 3;
+                    y += 2;
 
-                    // Dividir el nombre en múltiples líneas si es necesario
-                    String nombreCompleto = linea.getNombreProducto();
-                    List<String> lineasNombre = dividirTexto(nombreCompleto, 20);
+                    String nombre = linea.getNombreProducto();
+                    List<String> lineasNombre = dividirTexto(nombre, 14);
 
-                    // Primera línea: Cantidad + primera parte del nombre
-                    String primeraLinea = String.format("%-4d  %s", linea.getCantidad(), lineasNombre.get(0));
-                    g2d.drawString(primeraLinea, x, y);
+                    // Línea 1: Cantidad + Nombre
+                    String cantStr = String.format("%-4d", linea.getCantidad());
+                    g2d.drawString(cantStr + lineasNombre.get(0), x, y);
+
+                    // Subtotal de la línea (Alineado a la derecha)
+                    String subtotal = String.format("%.2f", linea.getTotalConIva());
+                    drawRightText(g2d, subtotal, x, y, width);
                     y += lineHeight;
 
-                    // Líneas adicionales del nombre (si las hay)
+                    // Líneas adicionales del nombre
                     for (int i = 1; i < lineasNombre.size(); i++) {
-                        g2d.drawString("      " + lineasNombre.get(i), x, y);
+                        g2d.drawString("    " + lineasNombre.get(i), x, y);
                         y += lineHeight;
                     }
 
-                    // Precio unitario y descuento
-                    BigDecimal precioConDescuento = linea.getPrecioConDescuento();
-                    String lineaPrecio = String.format("%.2f EUR", precioConDescuento);
-
+                    // LÓGICA DE DESCUENTO CONDICIONAL
                     if (linea.getDescuento() > 0) {
-                        lineaPrecio += String.format(" (-%d%%)", linea.getDescuento());
+                        g2d.setFont(fontSmall);
+                        String dtoInfo = String.format("    PVP: %.2f (-%d%%)",
+                                linea.getPrecioUnitario(), linea.getDescuento());
+                        g2d.drawString(dtoInfo, x, y);
+                        g2d.setFont(fontNormal);
+                        y += lineHeight;
                     }
-
-                    g2d.setFont(fontSmall);
-                    g2d.drawString("      " + lineaPrecio, x, y);
-                    g2d.setFont(fontNormal);
-
-                    // Subtotal alineado a la derecha
-                    String subtotal = String.format("%.2f", linea.getTotalConIva());
-                    FontMetrics fm = g2d.getFontMetrics();
-                    int subtotalWidth = fm.stringWidth(subtotal);
-                    g2d.drawString(subtotal, x + width - subtotalWidth, y);
-
-                    y += lineHeight + 3;
                 }
 
-                y = drawLine(g2d, "-", x, y, width);
-                y += 5;
+                y += 4;
+                y = drawLine(g2d, "-", x, y, width, MAX_CHARS_PER_LINE);
+                y += 4;
 
                 // ========== TOTALES ==========
-                y = drawTotalLine(g2d, "Base imponible:", facturaActual.getTotalSinIva(), x, y, width, fontNormal);
-                y = drawTotalLine(g2d, "IVA (" + config.getIvaGeneral() + "%):", facturaActual.getTotalIva(), x, y, width, fontNormal);
+                y = drawTotalRow(g2d, "Base imponible:", facturaActual.getTotalSinIva(), x, y, width, fontNormal);
 
-                y += 3;
-                g2d.setFont(fontBold);
-                y = drawTotalLine(g2d, "TOTAL:", facturaActual.getTotalConIva(), x, y, width, fontBold);
-                y += 3;
+                String labelIva = "IVA " + config.getIvaGeneral() + "%:";
+                y = drawTotalRow(g2d, labelIva, facturaActual.getTotalIva(), x, y, width, fontNormal);
 
-                g2d.setFont(fontNormal);
-                y = drawLine(g2d, "=", x, y, width);
+                y += 2;
+                y = drawLine(g2d, "=", x, y, width, MAX_CHARS_PER_LINE);
+                y += 4;
+
+                y = drawTotalRow(g2d, "TOTAL:", facturaActual.getTotalConIva(), x, y, width, fontBold);
+
+                y += 4;
+                y = drawLine(g2d, "=", x, y, width, MAX_CHARS_PER_LINE);
                 y += lineHeight;
 
                 // ========== PIE ==========
-                y = drawCenteredText(g2d, "Articulos: " + facturaActual.getLineas().size(), x, y, width);
-                y += lineHeight;
-                y = drawCenteredText(g2d, "¡Gracias por su compra!", x, y, width);
+                y = drawCenteredText(g2d, "Gracias por su compra", x, y, width);
                 y = drawCenteredText(g2d, "Vuelva pronto", x, y, width);
 
-                System.out.println("✓ Ticket generado correctamente");
-
             } catch (Exception e) {
-                System.err.println("❌ Error: " + e.getMessage());
-                e.printStackTrace();
-                throw new PrinterException("Error al generar ticket: " + e.getMessage());
+                throw new PrinterException(e.getMessage());
             }
 
             return PAGE_EXISTS;
         }
 
-        private List<String> dividirTexto(String texto, int maxCaracteres) {
-            List<String> lineas = new ArrayList<>();
+        private List<String> dividirTexto(String texto, int max) {
+            List<String> res = new ArrayList<>();
+            if (texto == null) return res;
+            if (texto.length() <= max) { res.add(texto); return res; }
 
-            if (texto.length() <= maxCaracteres) {
-                lineas.add(texto);
-                return lineas;
-            }
-
-            String[] palabras = texto.split(" ");
-            StringBuilder lineaActual = new StringBuilder();
-
-            for (String palabra : palabras) {
-                if (lineaActual.length() + palabra.length() + 1 <= maxCaracteres) {
-                    if (lineaActual.length() > 0) {
-                        lineaActual.append(" ");
-                    }
-                    lineaActual.append(palabra);
+            String[] words = texto.split(" ");
+            StringBuilder sb = new StringBuilder();
+            for (String w : words) {
+                if (sb.length() + w.length() + 1 <= max) {
+                    if (sb.length() > 0) sb.append(" ");
+                    sb.append(w);
                 } else {
-                    if (lineaActual.length() > 0) {
-                        lineas.add(lineaActual.toString());
-                        lineaActual = new StringBuilder(palabra);
-                    } else {
-                        lineas.add(palabra.substring(0, maxCaracteres));
-                        lineaActual = new StringBuilder(palabra.substring(maxCaracteres));
-                    }
+                    if (sb.length() > 0) res.add(sb.toString());
+                    sb = new StringBuilder(w);
                 }
             }
-
-            if (lineaActual.length() > 0) {
-                lineas.add(lineaActual.toString());
-            }
-
-            return lineas;
+            if (sb.length() > 0) res.add(sb.toString());
+            return res;
         }
 
         private int drawCenteredText(Graphics2D g2d, String text, int x, int y, int width) {
+            if (text == null || text.isEmpty()) return y;
             FontMetrics fm = g2d.getFontMetrics();
-            int textWidth = fm.stringWidth(text);
-            int xCentered = x + (width - textWidth) / 2;
-            g2d.drawString(text, Math.max(x, xCentered), y);
-            return y + 14;
+            int tw = fm.stringWidth(text);
+            g2d.drawString(text, x + (width - tw) / 2, y);
+            return y + 12;
         }
 
-        private int drawLine(Graphics2D g2d, String caracter, int x, int y, int width) {
-            StringBuilder linea = new StringBuilder();
-            int numCaracteres = width / 6;
-            for (int i = 0; i < numCaracteres; i++) {
-                linea.append(caracter);
-            }
-            g2d.drawString(linea.toString(), x, y);
-            return y + 14;
+        private void drawRightText(Graphics2D g2d, String text, int x, int y, int width) {
+            FontMetrics fm = g2d.getFontMetrics();
+            int tw = fm.stringWidth(text);
+            g2d.drawString(text, x + width - tw, y);
         }
 
-        private int drawTotalLine(Graphics2D g2d, String concepto, BigDecimal importe, int x, int y, int width, Font font) {
+        private int drawTotalRow(Graphics2D g2d, String label, BigDecimal value, int x, int y, int width, Font font) {
             g2d.setFont(font);
-            g2d.drawString(concepto, x, y);
+            g2d.drawString(label, x, y);
+            drawRightText(g2d, String.format("%.2f", value), x, y, width);
+            return y + 12;
+        }
 
-            String importeStr = String.format("%.2f EUR", importe);
-            FontMetrics fm = g2d.getFontMetrics();
-            int importeWidth = fm.stringWidth(importeStr);
-            g2d.drawString(importeStr, x + width - importeWidth, y);
-
-            return y + 14;
+        private int drawLine(Graphics2D g2d, String c, int x, int y, int width, int n) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < n; i++) sb.append(c);
+            g2d.drawString(sb.toString(), x, y);
+            return y + 12;
         }
     }
 }
