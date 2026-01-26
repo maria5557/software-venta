@@ -6,15 +6,13 @@ import org.tpv.repository.FacturaRepository;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 public class VentaService {
 
     private Factura facturaActual;
     private final Configuracion configuracion;
-    private int contadorFacturas = 1;
     private final FacturaRepository facturaRepository = new FacturaRepository();
-
+    private final FacturaService facturaService = new FacturaService(); // ⭐ Usamos el nuevo servicio
 
     public VentaService(Configuracion configuracion) {
         this.configuracion = configuracion;
@@ -24,9 +22,8 @@ public class VentaService {
         facturaActual = new Factura();
         facturaActual.setFechaEmision(LocalDateTime.now());
 
-        // Generar número de factura
-        String numeroFactura = generarNumeroFactura();
-        facturaActual.setNumeroFactura(numeroFactura);
+        // ⭐ El número se generará al FINALIZAR o GUARDAR para asegurar que sea el último real
+        facturaActual.setNumeroFactura("PENDIENTE");
 
         // Asignar empleado por defecto
         Empleado empleado = Empleado.empleadoPorDefecto();
@@ -41,14 +38,12 @@ public class VentaService {
     }
 
     public void guardarVenta() throws SQLException {
-        facturaRepository.save(facturaActual);
-    }
+        // ⭐ Antes de guardar, generamos el número real único
+        String nuevoNumero = facturaService.generarSiguienteNumeroFactura();
+        facturaActual.setNumeroFactura(nuevoNumero);
 
-    private String generarNumeroFactura() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-        String fecha = LocalDateTime.now().format(formatter);
-        String numero = String.format("%06d", contadorFacturas++);
-        return fecha + "-" + numero;
+        // Guardamos usando el repositorio
+        facturaService.guardarFactura(facturaActual);
     }
 
     public void asignarCliente(Cliente cliente) {
@@ -60,7 +55,6 @@ public class VentaService {
     }
 
     public void añadirProducto(Producto producto) {
-
         for (LineaFactura linea : facturaActual.getLineas()) {
             if (linea.getProductoId() != null &&
                     linea.getCodigoProducto().equals(producto.getCodigoBarra())) {

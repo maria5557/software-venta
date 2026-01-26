@@ -11,6 +11,9 @@ import javafx.scene.layout.HBox;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
 import org.tpv.service.FacturaService;
+import org.tpv.service.ImpresoraService;
+import org.tpv.config.Configuracion;
+import org.tpv.repository.ConfiguracionRepository;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -18,7 +21,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Optional;
 
 public class FacturasController {
 
@@ -40,6 +42,7 @@ public class FacturasController {
     @FXML private Label lblSumaTotal;
 
     private FacturaService facturaService;
+    private ImpresoraService impresoraService;
     private ObservableList<Factura> facturasObservables = FXCollections.observableArrayList();
 
     @FXML
@@ -48,10 +51,17 @@ public class FacturasController {
 
         facturaService = new FacturaService();
 
+        // Inicializar servicio de impresión
+        try {
+            Configuracion config = new ConfiguracionRepository().findFirst();
+            impresoraService = new ImpresoraService(config);
+        } catch (Exception e) {
+            System.err.println("Error al inicializar ImpresoraService: " + e.getMessage());
+        }
+
         configurarTabla();
         cargarFacturas();
 
-        // Configurar Enter en el campo de búsqueda
         if (txtBusquedaCliente != null) {
             txtBusquedaCliente.setOnAction(event -> buscarPorCliente());
         }
@@ -60,7 +70,6 @@ public class FacturasController {
     }
 
     private void configurarTabla() {
-        // Configurar columnas
         colNumero.setCellValueFactory(data ->
                 new SimpleStringProperty(data.getValue().getNumeroFactura()));
 
@@ -78,7 +87,6 @@ public class FacturasController {
         colTotal.setCellValueFactory(data ->
                 new SimpleObjectProperty<>(data.getValue().getTotalConIva()));
 
-        // Formatear columna de total
         colTotal.setCellFactory(col -> new TableCell<Factura, BigDecimal>() {
             @Override
             protected void updateItem(BigDecimal total, boolean empty) {
@@ -91,14 +99,12 @@ public class FacturasController {
             }
         });
 
-        // Configurar columna de acciones
         colAcciones.setCellFactory(col -> new TableCell<Factura, Void>() {
             private final Button btnVer = new Button("👁️ Ver");
             private final HBox acciones = new HBox(5, btnVer);
 
             {
                 btnVer.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
-
                 btnVer.setOnAction(event -> {
                     Factura factura = getTableView().getItems().get(getIndex());
                     verDetalleFactura(factura);
@@ -122,17 +128,11 @@ public class FacturasController {
     private void cargarFacturas() {
         try {
             facturasObservables.clear();
-
             List<Factura> facturas = facturaService.obtenerTodas();
             facturasObservables.addAll(facturas);
-
             actualizarEstadisticas();
-
-            System.out.println("✓ Facturas cargadas: " + facturasObservables.size());
-
         } catch (SQLException e) {
             mostrarError("Error", "No se pudieron cargar las facturas: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
@@ -148,53 +148,32 @@ public class FacturasController {
 
         try {
             facturasObservables.clear();
-
             List<Factura> facturas = facturaService.buscarPorFechas(
                     fechaInicio != null ? fechaInicio.atStartOfDay() : null,
                     fechaFin != null ? fechaFin.atTime(23, 59, 59) : null
             );
-
             facturasObservables.addAll(facturas);
             actualizarEstadisticas();
-
-            if (facturasObservables.isEmpty()) {
-                mostrarAlerta("Sin resultados", "No se encontraron facturas en ese rango de fechas");
-            }
-
         } catch (SQLException e) {
             mostrarError("Error", "Error al filtrar: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
     @FXML
     private void buscarPorCliente() {
-        if (txtBusquedaCliente == null) {
-            return;
-        }
-
+        if (txtBusquedaCliente == null) return;
         String busqueda = txtBusquedaCliente.getText().trim();
-
         if (busqueda.isEmpty()) {
             mostrarAlerta("Búsqueda vacía", "Introduce el nombre o DNI del cliente");
             return;
         }
-
         try {
             facturasObservables.clear();
-
             List<Factura> facturas = facturaService.buscarPorCliente(busqueda);
             facturasObservables.addAll(facturas);
-
             actualizarEstadisticas();
-
-            if (facturasObservables.isEmpty()) {
-                mostrarAlerta("Sin resultados", "No se encontraron facturas para ese cliente");
-            }
-
         } catch (SQLException e) {
             mostrarError("Error", "Error al buscar: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
@@ -202,9 +181,7 @@ public class FacturasController {
     private void limpiarFiltros() {
         dateFechaInicio.setValue(null);
         dateFechaFin.setValue(null);
-        if (txtBusquedaCliente != null) {
-            txtBusquedaCliente.clear();
-        }
+        if (txtBusquedaCliente != null) txtBusquedaCliente.clear();
         cargarFacturas();
     }
 
@@ -213,8 +190,10 @@ public class FacturasController {
         dialog.setTitle("Detalle de Factura");
         dialog.setHeaderText("Factura: " + factura.getNumeroFactura());
 
+        // Botones del diálogo
+        ButtonType btnImprimir = new ButtonType("🖨️ Reimprimir Ticket", ButtonBar.ButtonData.OK_DONE);
         ButtonType btnCerrar = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().add(btnCerrar);
+        dialog.getDialogPane().getButtonTypes().addAll(btnImprimir, btnCerrar);
 
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -231,12 +210,9 @@ public class FacturasController {
         String cliente = factura.getClienteNombre() != null ? factura.getClienteNombre() : "AL CONTADO";
         grid.add(new Label(cliente), 1, row++);
 
-        // Separator
         grid.add(new Separator(), 0, row++, 2, 1);
-
         grid.add(new Label("LÍNEAS DE FACTURA:"), 0, row++, 2, 1);
 
-        // Tabla de líneas
         TableView<LineaFactura> tablaLineas = new TableView<>();
         tablaLineas.setPrefHeight(200);
 
@@ -256,7 +232,6 @@ public class FacturasController {
         colTot.setCellValueFactory(data -> new SimpleObjectProperty<>(data.getValue().getTotalConIva()));
         colTot.setPrefWidth(80);
 
-        // Formatear columnas de dinero
         colPrec.setCellFactory(col -> new TableCell<LineaFactura, BigDecimal>() {
             @Override
             protected void updateItem(BigDecimal precio, boolean empty) {
@@ -277,11 +252,8 @@ public class FacturasController {
         tablaLineas.getItems().addAll(factura.getLineas());
 
         grid.add(tablaLineas, 0, row++, 2, 1);
-
-        // Separator
         grid.add(new Separator(), 0, row++, 2, 1);
 
-        // Totales
         grid.add(new Label("Base imponible:"), 0, row);
         grid.add(new Label(String.format("%.2f €", factura.getTotalSinIva())), 1, row++);
 
@@ -294,16 +266,35 @@ public class FacturasController {
         grid.add(lblTotal, 1, row++);
 
         dialog.getDialogPane().setContent(grid);
+
+        // Manejar acción de reimpresión
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == btnImprimir) {
+                reimprimirTicket(factura);
+            }
+            return null;
+        });
+
         dialog.showAndWait();
+    }
+
+    private void reimprimirTicket(Factura factura) {
+        try {
+            if (impresoraService != null) {
+                impresoraService.imprimirTicket(factura, null); // null usa la impresora por defecto
+            } else {
+                mostrarError("Error de Impresión", "El servicio de impresión no está disponible.");
+            }
+        } catch (Exception e) {
+            mostrarError("Error de Impresión", "No se pudo reimprimir el ticket: " + e.getMessage());
+        }
     }
 
     private void actualizarEstadisticas() {
         lblTotalFacturas.setText(facturasObservables.size() + " facturas");
-
         BigDecimal sumaTotal = facturasObservables.stream()
                 .map(Factura::getTotalConIva)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         lblSumaTotal.setText(String.format("Total: %.2f €", sumaTotal));
     }
 

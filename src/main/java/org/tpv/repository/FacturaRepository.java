@@ -29,6 +29,22 @@ public class FacturaRepository {
         return facturas;
     }
 
+    /**
+     * Obtiene el último número de factura registrado en el sistema.
+     * Útil para generar el siguiente número secuencial.
+     */
+    public String findLastNumeroFactura() throws SQLException {
+        String sql = "SELECT numero_factura FROM factura ORDER BY id DESC LIMIT 1";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getString("numero_factura");
+            }
+        }
+        return null;
+    }
+
     public List<Factura> findByFechaRango(LocalDateTime fechaInicio, LocalDateTime fechaFin) throws SQLException {
         List<Factura> facturas = new ArrayList<>();
         StringBuilder sql = new StringBuilder("SELECT * FROM factura WHERE 1=1");
@@ -208,6 +224,4 @@ public class FacturaRepository {
             ps.executeBatch();
         }
     }
-
-
 }
