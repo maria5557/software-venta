@@ -33,7 +33,7 @@
         <Label text="Buscar por cliente:" style="-fx-font-weight: bold;" />
         <TextField fx:id="txtBusquedaCliente" promptText="Nombre o DNI del cliente..." prefWidth="300"
                    style="-fx-font-size: 14px; -fx-padding: 8;" />
-        <Button fx:id="btnBuscarCliente" text="🔍 Buscar Cliente" onAction="#buscarPorCliente"
+        <Button fx:id="btnBuscarCliente" text="🔍 Buscar" onAction="#buscarPorCliente"
                 style="-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
         <Button fx:id="btnLimpiarFiltros" text="🔄 Limpiar Filtros" onAction="#limpiarFiltros"
                 style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
