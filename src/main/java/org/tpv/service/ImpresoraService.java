@@ -149,13 +149,18 @@ public class ImpresoraService {
                 g2d.drawString("Fecha: " + facturaActual.getFechaEmision().format(formatter), x, y);
                 y += lineHeight;
 
-                // ⭐ CLIENTE CON SOPORTE MULTILÍNEA ⭐
+                // CLIENTE CON SOPORTE MULTILÍNEA
                 String nombreCliente = (facturaActual.getClienteNombre() != null) ? facturaActual.getClienteNombre() : "AL CONTADO";
                 List<String> lineasCliente = dividirTexto("Cliente: " + nombreCliente, MAX_CHARS_PER_LINE);
                 for (String linea : lineasCliente) {
                     g2d.drawString(linea, x, y);
                     y += lineHeight;
                 }
+
+                // EMPLEADO
+                String nombreEmpleado = (facturaActual.getEmpleadoNombre() != null) ? facturaActual.getEmpleadoNombre() : "Admin";
+                g2d.drawString("Atendido por: " + nombreEmpleado, x, y);
+                y += lineHeight;
 
                 y += 4;
                 y = drawLine(g2d, "-", x, y, width, MAX_CHARS_PER_LINE);
