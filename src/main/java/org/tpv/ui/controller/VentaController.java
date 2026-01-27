@@ -1086,20 +1086,20 @@ public class VentaController {
         try {
             Cliente clienteActual = ventaService.getClienteActual();
 
-            // Solo actualizar si no es cliente por defecto
+            // Solo actualizar si no es cliente por defecto y ya tiene ID (ya existe en BD)
             if (!clienteActual.esClientePorDefecto() && clienteActual.getId() != null) {
                 Cliente clienteBD = clienteRepository.findByDni(clienteActual.getDni());
 
                 if (clienteBD != null) {
-                    // Verificar si hubo cambios
-                    boolean cambios = !clienteBD.getNombre().equals(clienteActual.getNombre()) ||
-                            !clienteBD.getTelefono().equals(clienteActual.getTelefono()) ||
-                            !clienteBD.getDireccion().equals(clienteActual.getDireccion()) ||
-                            !clienteBD.getEmail().equals(clienteActual.getEmail());
+                    // Usamos java.util.Objects para comparar de forma segura contra nulls
+                    boolean cambios = !java.util.Objects.equals(clienteBD.getNombre(), clienteActual.getNombre()) ||
+                            !java.util.Objects.equals(clienteBD.getTelefono(), clienteActual.getTelefono()) ||
+                            !java.util.Objects.equals(clienteBD.getDireccion(), clienteActual.getDireccion()) ||
+                            !java.util.Objects.equals(clienteBD.getEmail(), clienteActual.getEmail());
 
                     if (cambios) {
                         clienteRepository.update(clienteActual);
-                        System.out.println("✓ Cliente actualizado en BD");
+                        System.out.println("✓ Cliente actualizado en BD por cambios detectados");
                     }
                 }
             }

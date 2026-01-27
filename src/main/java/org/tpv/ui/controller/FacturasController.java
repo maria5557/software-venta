@@ -11,6 +11,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
+import org.tpv.service.ClienteService;
 import org.tpv.service.FacturaService;
 import org.tpv.service.ImpresoraService;
 import org.tpv.config.Configuracion;
@@ -45,6 +46,7 @@ public class FacturasController {
     private FacturaService facturaService;
     private ImpresoraService impresoraService;
     private ObservableList<Factura> facturasObservables = FXCollections.observableArrayList();
+    private ClienteService clienteService;
 
     @FXML
     public void initialize() {
@@ -52,6 +54,8 @@ public class FacturasController {
         try {
             Configuracion config = new ConfiguracionRepository().findFirst();
             impresoraService = new ImpresoraService(config);
+            clienteService = new ClienteService();
+
         } catch (Exception e) {
             System.err.println("Error al inicializar ImpresoraService: " + e.getMessage());
         }
@@ -101,16 +105,63 @@ public class FacturasController {
 
     private void cargarFacturas() {
         try {
-            facturasObservables.setAll(facturaService.obtenerTodas());
+            facturasObservables.clear();
+            List<Factura> facturas = facturaService.obtenerTodas();
+            facturasObservables.addAll(facturas);
             actualizarEstadisticas();
         } catch (SQLException e) {
             mostrarError("Error", "No se pudieron cargar las facturas: " + e.getMessage());
         }
     }
 
-    @FXML private void filtrarFacturas() { /* ... lógica anterior ... */ }
-    @FXML private void buscarPorCliente() { /* ... lógica anterior ... */ }
-    @FXML private void limpiarFiltros() { cargarFacturas(); }
+    @FXML
+    private void filtrarFacturas() {
+        LocalDate fechaInicio = dateFechaInicio.getValue();
+        LocalDate fechaFin = dateFechaFin.getValue();
+
+        if (fechaInicio == null && fechaFin == null) {
+            mostrarAlerta("Fechas no seleccionadas", "Selecciona al menos una fecha para filtrar");
+            return;
+        }
+
+        try {
+            facturasObservables.clear();
+            List<Factura> facturas = facturaService.buscarPorFechas(
+                    fechaInicio != null ? fechaInicio.atStartOfDay() : null,
+                    fechaFin != null ? fechaFin.atTime(23, 59, 59) : null
+            );
+            facturasObservables.addAll(facturas);
+            actualizarEstadisticas();
+        } catch (SQLException e) {
+            mostrarError("Error", "Error al filtrar: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void buscarPorCliente() {
+        if (txtBusquedaCliente == null) return;
+        String busqueda = txtBusquedaCliente.getText().trim();
+        if (busqueda.isEmpty()) {
+            mostrarAlerta("Búsqueda vacía", "Introduce el nombre o DNI del cliente");
+            return;
+        }
+        try {
+            facturasObservables.clear();
+            List<Factura> facturas = facturaService.buscarPorCliente(busqueda);
+            facturasObservables.addAll(facturas);
+            actualizarEstadisticas();
+        } catch (SQLException e) {
+            mostrarError("Error", "Error al buscar: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void limpiarFiltros() {
+        dateFechaInicio.setValue(null);
+        dateFechaFin.setValue(null);
+        if (txtBusquedaCliente != null) txtBusquedaCliente.clear();
+        cargarFacturas();
+    }
 
     private void verDetalleFactura(Factura factura) {
         Dialog<Void> dialog = new Dialog<>();
@@ -211,9 +262,29 @@ public class FacturasController {
         }
     }
 
-    private void actualizarEstadisticas() { /* ... lógica anterior ... */ }
-    private void mostrarAlerta(String t, String m) { /* ... */ }
-    private void mostrarError(String t, String m) { /* ... */ }
+    private void actualizarEstadisticas() {
+        lblTotalFacturas.setText(facturasObservables.size() + " facturas");
+        BigDecimal sumaTotal = facturasObservables.stream()
+                .map(Factura::getTotalConIva)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        lblSumaTotal.setText(String.format("Total: %.2f €", sumaTotal));
+    }
+
+    private void mostrarAlerta(String titulo, String mensaje) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
+    }
+
+    private void mostrarError(String titulo, String mensaje) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
+    }
 
     // Celda personalizada para dinero
     private static class MoneyCell extends TableCell<LineaFactura, BigDecimal> {

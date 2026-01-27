@@ -11,11 +11,11 @@ import lombok.Setter;
 @AllArgsConstructor
 public class Cliente {
     private Long id;
-    private String dni;
-    private String nombre;
-    private String telefono;
-    private String direccion;
-    private String email;
+    private String dni="";
+    private String nombre="";
+    private String telefono="";
+    private String direccion="";
+    private String email="";
 
     // Cliente por defecto
     public static Cliente clientePorDefecto() {
