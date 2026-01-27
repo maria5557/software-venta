@@ -84,13 +84,14 @@ public class FacturaRepository {
     public List<Factura> findByCliente(String busqueda) throws SQLException {
         List<Factura> facturas = new ArrayList<>();
         String sql = """
-            SELECT f.* FROM factura f
-            LEFT JOIN cliente c ON f.cliente_dni = c.dni
-            WHERE LOWER(c.nombre) LIKE LOWER(?) 
-               OR LOWER(c.dni) LIKE LOWER(?)
-               OR LOWER(f.cliente_nombre) LIKE LOWER(?)
-            ORDER BY f.fechaEmision DESC
-            """;
+        SELECT f.* 
+        FROM factura f
+        LEFT JOIN cliente c ON f.cliente_id = c.id
+        WHERE LOWER(c.nombre) LIKE LOWER(?) 
+           OR LOWER(COALESCE(c.dni, '')) LIKE LOWER(?) 
+           OR LOWER(f.cliente_nombre) LIKE LOWER(?)
+        ORDER BY f.fechaEmision DESC
+        """;
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -116,9 +117,7 @@ public class FacturaRepository {
         Factura factura = new Factura();
         factura.setId(rs.getLong("id"));
         factura.setNumeroFactura(rs.getString("numero_factura"));
-        factura.setFechaEmision(
-                LocalDateTime.parse(rs.getString("fechaEmision"))
-        );        factura.setClienteDni(rs.getString("cliente_dni"));
+        factura.setFechaEmision(LocalDateTime.parse(rs.getString("fechaEmision")));
         factura.setClienteNombre(rs.getString("cliente_nombre"));
         factura.setTotalSinIva(rs.getBigDecimal("total_sin_iva"));
         factura.setTotalIva(rs.getBigDecimal("total_iva"));
@@ -152,17 +151,19 @@ public class FacturaRepository {
     }
 
 
-    public void save(Factura factura) throws SQLException {
+    public void guardar(Factura factura) throws SQLException {
         String sqlFactura = """
         INSERT INTO factura (
             numero_factura,
             fechaEmision,
-            cliente_dni,
+            total_sin_iva, 
+            total_iva,   
+            total_con_iva,                 
+            cliente_id,                 
             cliente_nombre,
-            total_sin_iva,
-            total_iva,
-            total_con_iva
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            empleado_id,
+            empleado_nombre
+        ) VALUES (?, ?, ?, ?, ?, ?, ?,?,?)
         """;
 
         try (Connection conn = DatabaseManager.getConnection()) {
@@ -171,13 +172,17 @@ public class FacturaRepository {
             try (PreparedStatement ps = conn.prepareStatement(
                     sqlFactura, Statement.RETURN_GENERATED_KEYS)) {
 
+                // 2. Mapeo correcto y ordenado de los 9 parámetros
                 ps.setString(1, factura.getNumeroFactura());
                 ps.setString(2, factura.getFechaEmision().toString());
-                ps.setString(3, factura.getClienteDni());
-                ps.setString(4, factura.getClienteNombre());
-                ps.setBigDecimal(5, factura.getTotalSinIva());
-                ps.setBigDecimal(6, factura.getTotalIva());
-                ps.setBigDecimal(7, factura.getTotalConIva());
+                ps.setBigDecimal(3, factura.getTotalSinIva());
+                ps.setBigDecimal(4, factura.getTotalIva());
+                ps.setBigDecimal(5, factura.getTotalConIva());
+                ps.setLong(6, factura.getClienteId());
+                ps.setString(7, factura.getClienteNombre());
+                ps.setLong(8,factura.getEmpleadoId());
+                ps.setString(9,factura.getEmpleadoNombre());
+
 
                 ps.executeUpdate();
 

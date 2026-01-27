@@ -2,7 +2,6 @@ package org.tpv.service;
 
 import org.tpv.config.Configuracion;
 import org.tpv.domain.*;
-import org.tpv.repository.FacturaRepository;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -11,8 +10,9 @@ public class VentaService {
 
     private Factura facturaActual;
     private final Configuracion configuracion;
-    private final FacturaRepository facturaRepository = new FacturaRepository();
-    private final FacturaService facturaService = new FacturaService(); // ⭐ Usamos el nuevo servicio
+    private final FacturaService facturaService = new FacturaService();
+    private final ClienteService clienteService = new ClienteService();
+
 
     public VentaService(Configuracion configuracion) {
         this.configuracion = configuracion;
@@ -31,10 +31,9 @@ public class VentaService {
         facturaActual.setEmpleadoNombre(empleado.getNombre());
 
         // Asignar cliente por defecto
-        Cliente cliente = Cliente.clientePorDefecto();
+        Cliente cliente = clienteService.obtenerClientePorDefecto();
         facturaActual.setClienteId(cliente.getId());
         facturaActual.setClienteNombre(cliente.getNombre());
-        facturaActual.setClienteDni(cliente.getDni());
     }
 
     public void guardarVenta() throws SQLException {
@@ -50,7 +49,6 @@ public class VentaService {
         if (facturaActual != null) {
             facturaActual.setClienteId(cliente.getId());
             facturaActual.setClienteNombre(cliente.getNombre());
-            facturaActual.setClienteDni(cliente.getDni());
         }
     }
 
@@ -84,12 +82,11 @@ public class VentaService {
     }
 
     public Cliente getClienteActual() {
-        if (facturaActual == null) return Cliente.clientePorDefecto();
+        if (facturaActual == null) return clienteService.obtenerClientePorDefecto();
 
         Cliente cliente = new Cliente();
         cliente.setId(facturaActual.getClienteId());
         cliente.setNombre(facturaActual.getClienteNombre());
-        cliente.setDni(facturaActual.getClienteDni());
         return cliente;
     }
 }

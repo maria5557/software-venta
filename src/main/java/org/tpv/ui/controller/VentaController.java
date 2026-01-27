@@ -18,8 +18,8 @@ import org.tpv.domain.Cliente;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
 import org.tpv.domain.Producto;
-import org.tpv.repository.ClienteRepository;
 import org.tpv.repository.ConfiguracionRepository;
+import org.tpv.service.ClienteService;
 import org.tpv.service.ImpresoraService;
 import org.tpv.service.ProductoService;
 import org.tpv.service.VentaService;
@@ -65,7 +65,7 @@ public class VentaController {
     private Configuracion config;
     private ImpresoraService impresoraService;
     private ConfiguracionRepository configRepository;
-    private ClienteRepository clienteRepository;
+    private ClienteService clienteService;
 
 
     private ObservableList<LineaFactura> lineasObservables = FXCollections.observableArrayList();
@@ -79,7 +79,7 @@ public class VentaController {
             // Inicializar repositorios y servicios
             productoService = new ProductoService();
             configRepository = new ConfiguracionRepository();
-            clienteRepository = new ClienteRepository();
+            clienteService = new ClienteService();
 
             // Cargar configuración desde la base de datos
             config = configRepository.obtenerConfiguracion();
@@ -871,7 +871,7 @@ public class VentaController {
                 } else if (resultado.get() == btnNuevo) {
                     crearNuevoCliente();
                 } else if (resultado.get() == btnContado) {
-                    ventaService.asignarCliente(Cliente.clientePorDefecto());
+                    ventaService.asignarCliente(clienteService.obtenerClientePorDefecto());
                     actualizarLabelCliente();
                 }
             }
@@ -896,58 +896,54 @@ public class VentaController {
         if (resultado.isPresent() && !resultado.get().trim().isEmpty()) {
             String busqueda = resultado.get().trim();
 
-            // Intentar buscar por DNI primero
-            Cliente cliente = clienteRepository.findByDni(busqueda);
+            List<Cliente> clientes = clienteService.buscarPorNombreODni(busqueda);
 
-            // Si no se encuentra por DNI, buscar por nombre
-            if (cliente == null) {
-                List<Cliente> clientes = clienteRepository.findByNombre(busqueda);
+            if (clientes.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("No encontrado");
+                alert.setHeaderText("Cliente no encontrado");
+                alert.setContentText("¿Deseas crear un nuevo cliente?");
 
-                if (clientes.isEmpty()) {
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("No encontrado");
-                    alert.setHeaderText("Cliente no encontrado");
-                    alert.setContentText("¿Deseas crear un nuevo cliente?");
+                ButtonType btnSi = new ButtonType("Sí");
+                ButtonType btnNo = new ButtonType("No", ButtonBar.ButtonData.CANCEL_CLOSE);
+                alert.getButtonTypes().setAll(btnSi, btnNo);
 
-                    ButtonType btnSi = new ButtonType("Sí");
-                    ButtonType btnNo = new ButtonType("No", ButtonBar.ButtonData.CANCEL_CLOSE);
-                    alert.getButtonTypes().setAll(btnSi, btnNo);
-
-                    Optional<ButtonType> respuesta = alert.showAndWait();
-                    if (respuesta.isPresent() && respuesta.get() == btnSi) {
-                        crearNuevoCliente();
-                    }
-                    return;
+                Optional<ButtonType> respuesta = alert.showAndWait();
+                if (respuesta.isPresent() && respuesta.get() == btnSi) {
+                    crearNuevoCliente();
                 }
-
-                // Si hay múltiples resultados, mostrar lista para elegir
-                if (clientes.size() > 1) {
-                    List<String> opciones = clientes.stream()
-                            .map(c -> c.getNombre() + " - " + c.getDni())
-                            .toList();
-
-                    ChoiceDialog<String> choiceDialog = new ChoiceDialog<>(opciones.get(0), opciones);
-                    choiceDialog.setTitle("Seleccionar Cliente");
-                    choiceDialog.setHeaderText("Se encontraron múltiples clientes");
-                    choiceDialog.setContentText("Elige uno:");
-
-                    Optional<String> seleccion = choiceDialog.showAndWait();
-                    if (seleccion.isPresent()) {
-                        int index = opciones.indexOf(seleccion.get());
-                        cliente = clientes.get(index);
-                    } else {
-                        return;
-                    }
-                } else {
-                    cliente = clientes.get(0);
-                }
+                return;
             }
 
+            Cliente clienteAsignado;
+            // Si hay múltiples resultados, mostrar lista para elegir
+            if (clientes.size() > 1) {
+                List<String> opciones = clientes.stream()
+                        .map(c -> c.getNombre() + " - " + c.getDni())
+                        .toList();
+
+                ChoiceDialog<String> choiceDialog = new ChoiceDialog<>(opciones.get(0), opciones);
+                choiceDialog.setTitle("Seleccionar Cliente");
+                choiceDialog.setHeaderText("Se encontraron múltiples clientes");
+                choiceDialog.setContentText("Elige uno:");
+
+                Optional<String> seleccion = choiceDialog.showAndWait();
+                if (seleccion.isPresent()) {
+                    int index = opciones.indexOf(seleccion.get());
+                    clienteAsignado = clientes.get(index);
+                } else {
+                    return;
+                }
+            } else {
+                clienteAsignado = clientes.get(0);
+            }
+
+
             // Asignar el cliente a la venta
-            ventaService.asignarCliente(cliente);
+            ventaService.asignarCliente(clienteAsignado);
             actualizarLabelCliente();
 
-            System.out.println("✓ Cliente asignado: " + cliente.getNombre());
+            System.out.println("✓ Cliente asignado: " + clienteAsignado.getNombre());
         }
     }
 
@@ -1023,26 +1019,18 @@ public class VentaController {
                 try {
                     // Si se proporciona DNI, verificar si ya existe
                     if (!dni.isEmpty()) {
-                        Cliente existente = clienteRepository.findByDni(dni);
+                        Cliente existente = clienteService.buscarPorDni(dni);
                         if (existente != null) {
                             mostrarAlerta("DNI duplicado", "Ya existe un cliente con este DNI");
                             return null;
                         }
-                    } else {
-                        // Si no hay DNI, generar uno automático único
-                        dni = "CLI-" + System.currentTimeMillis();
                     }
 
-                    Cliente nuevoCliente = new Cliente(
-                            null,
-                            dni,
-                            nombre,
+                    Cliente nuevoCliente = clienteService.crearCliente(dni,nombre,
                             txtTelefono.getText().trim(),
                             txtDireccion.getText().trim(),
-                            txtEmail.getText().trim()
-                    );
+                            txtEmail.getText().trim());
 
-                    clienteRepository.save(nuevoCliente);
                     System.out.println("✓ Cliente creado: " + nuevoCliente.getNombre());
 
                     return nuevoCliente;
@@ -1070,7 +1058,7 @@ public class VentaController {
         if (lblClienteActual != null) {
             Cliente cliente = ventaService.getClienteActual();
             if (cliente.esClientePorDefecto()) {
-                lblClienteActual.setText("Cliente: AL CONTADO");
+                lblClienteActual.setText(cliente.getNombre());
                 lblClienteActual.setStyle("-fx-text-fill: #95a5a6;");
             } else {
                 lblClienteActual.setText("Cliente: " + cliente.getNombre());
@@ -1088,7 +1076,7 @@ public class VentaController {
 
             // Solo actualizar si no es cliente por defecto y ya tiene ID (ya existe en BD)
             if (!clienteActual.esClientePorDefecto() && clienteActual.getId() != null) {
-                Cliente clienteBD = clienteRepository.findByDni(clienteActual.getDni());
+                Cliente clienteBD = clienteService.buscarPorId(clienteActual.getId());
 
                 if (clienteBD != null) {
                     // Usamos java.util.Objects para comparar de forma segura contra nulls
@@ -1098,7 +1086,7 @@ public class VentaController {
                             !java.util.Objects.equals(clienteBD.getEmail(), clienteActual.getEmail());
 
                     if (cambios) {
-                        clienteRepository.update(clienteActual);
+                        clienteService.actualizarCliente(clienteActual);
                         System.out.println("✓ Cliente actualizado en BD por cambios detectados");
                     }
                 }

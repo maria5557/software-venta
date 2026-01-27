@@ -40,7 +40,7 @@ public class DatabaseManager {
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS cliente (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    dni TEXT UNIQUE NOT NULL,
+                    dni TEXT UNIQUE,
                     nombre TEXT NOT NULL,
                     telefono TEXT,
                     direccion TEXT,

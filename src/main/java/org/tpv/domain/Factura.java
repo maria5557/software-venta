@@ -19,7 +19,6 @@ public class Factura {
     // Información del cliente
     private Long clienteId;
     private String clienteNombre;
-    private String clienteDni;
 
     // Información del empleado
     private Long empleadoId;

@@ -70,6 +70,6 @@ public class FacturaService {
         if (factura.getNumeroFactura() == null || factura.getNumeroFactura().isEmpty()) {
             factura.setNumeroFactura(generarSiguienteNumeroFactura());
         }
-        facturaRepository.save(factura);
+        facturaRepository.guardar(factura);
     }
 }

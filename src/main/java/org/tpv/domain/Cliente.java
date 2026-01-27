@@ -17,12 +17,8 @@ public class Cliente {
     private String direccion="";
     private String email="";
 
-    // Cliente por defecto
-    public static Cliente clientePorDefecto() {
-        return new Cliente(null, "", "CLIENTE AL CONTADO", "", "", "");
+    public boolean esClientePorDefecto() {
+        return id != null && id == 1;
     }
 
-    public boolean esClientePorDefecto() {
-        return id == null || "CLIENTE AL CONTADO".equals(nombre);
-    }
 }

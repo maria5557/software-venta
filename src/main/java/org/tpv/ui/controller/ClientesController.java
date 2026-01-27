@@ -65,8 +65,8 @@ public class ClientesController {
 
         // Configurar columna de acciones
         colAcciones.setCellFactory(col -> new TableCell<Cliente, Void>() {
-            private final Button btnEditar = new Button("✏️ Editar");
-            private final Button btnEliminar = new Button("🗑️ Eliminar");
+            private final Button btnEditar = new Button("Editar");
+            private final Button btnEliminar = new Button("Eliminar");
             private final HBox acciones = new HBox(5, btnEditar, btnEliminar);
 
             {
@@ -222,8 +222,6 @@ public class ClientesController {
                             mostrarAlerta("DNI duplicado", "Ya existe un cliente con este DNI");
                             return null;
                         }
-                    } else {
-                        dni = "CLI-" + System.currentTimeMillis();
                     }
 
                     Cliente nuevoCliente = clienteService.crearCliente(dni,nombre,txtTelefono.getText().trim(),txtDireccion.getText().trim(),txtEmail.getText().trim());
@@ -344,7 +342,7 @@ public class ClientesController {
         Optional<ButtonType> resultado = confirmacion.showAndWait();
         if (resultado.isPresent() && resultado.get() == ButtonType.OK) {
             try {
-                clienteService.eliminarCliente(cliente.getDni());
+                clienteService.eliminarCliente(cliente.getId());
 
                 Alert info = new Alert(Alert.AlertType.INFORMATION);
                 info.setTitle("Cliente eliminado");
