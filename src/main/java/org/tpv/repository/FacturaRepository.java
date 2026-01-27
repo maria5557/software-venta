@@ -118,6 +118,8 @@ public class FacturaRepository {
         factura.setId(rs.getLong("id"));
         factura.setNumeroFactura(rs.getString("numero_factura"));
         factura.setFechaEmision(LocalDateTime.parse(rs.getString("fechaEmision")));
+        // Leemos el ID del cliente para poder buscar sus datos exhaustivos luego
+        factura.setClienteId(rs.getLong("cliente_id"));
         factura.setClienteNombre(rs.getString("cliente_nombre"));
         factura.setTotalSinIva(rs.getBigDecimal("total_sin_iva"));
         factura.setTotalIva(rs.getBigDecimal("total_iva"));

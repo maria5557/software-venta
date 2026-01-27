@@ -9,6 +9,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.tpv.domain.Cliente;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
 import org.tpv.service.ClienteService;
@@ -164,6 +165,21 @@ public class FacturasController {
     }
 
     private void verDetalleFactura(Factura factura) {
+        // 1. Intentar obtener los datos completos del cliente antes de mostrar el diálogo
+        Cliente clienteCompleto = null;
+        if (factura.getClienteId() != null) {
+            try {
+                // Usamos el servicio para buscar por ID
+                clienteCompleto = clienteService.buscarPorId(factura.getClienteId());
+            } catch (SQLException e) {
+                System.err.println("No se pudieron cargar los datos extra del cliente: " + e.getMessage());
+            }
+        }
+
+        System.out.println("clienteCompleto: " + factura.getClienteId());
+
+
+
         Dialog<Void> dialog = new Dialog<>();
         dialog.setTitle("Detalle Exhaustivo de Factura");
         dialog.setHeaderText("Factura: " + factura.getNumeroFactura());
@@ -171,27 +187,56 @@ public class FacturasController {
         ButtonType btnImprimir = new ButtonType("🖨️ Reimprimir Ticket", ButtonBar.ButtonData.OK_DONE);
         ButtonType btnCerrar = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(btnImprimir, btnCerrar);
-        dialog.getDialogPane().setPrefWidth(850); // Más ancho para ver todo bien
+        dialog.getDialogPane().setPrefWidth(900);
 
         VBox mainLayout = new VBox(15);
         mainLayout.setPadding(new javafx.geometry.Insets(20));
 
-        // --- INFO CABECERA ---
-        GridPane headerGrid = new GridPane();
-        headerGrid.setHgap(20); headerGrid.setVgap(10);
+        // --- SECCIÓN: INFO GENERAL Y CLIENTE ---
+        HBox infoSuperior = new HBox(40); // Espacio entre info factura e info cliente
+
+        // Bloque Izquierdo: Datos Factura
+        GridPane facturaGrid = new GridPane();
+        facturaGrid.setHgap(10); facturaGrid.setVgap(8);
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
-        headerGrid.add(new Label("Fecha:"), 0, 0);
-        headerGrid.add(new Label(factura.getFechaEmision().format(formatter)), 1, 0);
-        headerGrid.add(new Label("Cliente:"), 0, 1);
-        headerGrid.add(new Label(factura.getClienteNombre() != null ? factura.getClienteNombre() : "AL CONTADO"), 1, 1);
-        headerGrid.add(new Label("Atendido por:"), 2, 0);
-        headerGrid.add(new Label(factura.getEmpleadoNombre() != null ? factura.getEmpleadoNombre() : "Admin"), 3, 0);
+        facturaGrid.add(crearLabelTitulo("DATOS FACTURA"), 0, 0, 2, 1);
+        facturaGrid.add(new Label("Fecha:"), 0, 1);
+        facturaGrid.add(new Label(factura.getFechaEmision().format(formatter)), 1, 1);
+        facturaGrid.add(new Label("Atendido por:"), 0, 2);
+        facturaGrid.add(new Label(factura.getEmpleadoNombre() != null ? factura.getEmpleadoNombre() : "Admin"), 1, 2);
 
-        mainLayout.getChildren().add(headerGrid);
-        mainLayout.getChildren().add(new Separator());
+        // Bloque Derecho: Datos Cliente
+        GridPane clienteGrid = new GridPane();
+        clienteGrid.setHgap(10); clienteGrid.setVgap(8);
+        clienteGrid.setStyle("-fx-background-color: #f4f4f4; -fx-padding: 10; -fx-background-radius: 5; -fx-border-color: #ddd; -fx-border-radius: 5;");
 
-        // --- TABLA DETALLADA DE LÍNEAS ---
+        clienteGrid.add(crearLabelTitulo("DATOS DEL CLIENTE"), 0, 0, 2, 1);
+
+        if (clienteCompleto != null) {
+            clienteGrid.add(new Label("Nombre:"), 0, 1);
+            clienteGrid.add(new Label(clienteCompleto.getNombre()), 1, 1);
+            clienteGrid.add(new Label("DNI/NIF:"), 0, 2);
+            clienteGrid.add(new Label(clienteCompleto.getDni()), 1, 2);
+            clienteGrid.add(new Label("Teléfono:"), 0, 3);
+            clienteGrid.add(new Label(clienteCompleto.getTelefono() != null ? clienteCompleto.getTelefono() : "-"), 1, 3);
+            clienteGrid.add(new Label("Dirección:"), 0, 4);
+            clienteGrid.add(new Label(clienteCompleto.getDireccion() != null ? clienteCompleto.getDireccion() : "-"), 1, 4);
+            clienteGrid.add(new Label("Email:"), 0, 5);
+            clienteGrid.add(new Label(clienteCompleto.getEmail() != null ? clienteCompleto.getEmail() : "-"), 1, 5);
+        } else {
+            clienteGrid.add(new Label("Cliente:"), 0, 1);
+            clienteGrid.add(new Label(factura.getClienteNombre() != null ? factura.getClienteNombre() : "AL CONTADO"), 1, 1);
+            clienteGrid.add(new Label("Nota:"), 0, 2);
+            clienteGrid.add(new Label("Sin datos de registro adicionales"), 1, 2);
+        }
+
+        infoSuperior.getChildren().addAll(facturaGrid, clienteGrid);
+        HBox.setHgrow(clienteGrid, javafx.scene.layout.Priority.ALWAYS);
+
+        mainLayout.getChildren().addAll(infoSuperior, new Separator());
+
+        // --- TABLA DE LÍNEAS
         TableView<LineaFactura> tablaLineas = new TableView<>();
         tablaLineas.setPrefHeight(300);
 
@@ -222,7 +267,9 @@ public class FacturasController {
         colTot.setPrefWidth(100);
 
         tablaLineas.getColumns().addAll(colCod, colNom, colCan, colPre, colDto, colTot);
+        tablaLineas.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY); // Para que use todo el ancho
         tablaLineas.getItems().addAll(factura.getLineas());
+
         mainLayout.getChildren().add(tablaLineas);
 
         // --- TOTALES ---
@@ -252,6 +299,14 @@ public class FacturasController {
         });
         dialog.showAndWait();
     }
+
+    // Método auxiliar para dar formato a los títulos de las secciones
+    private Label crearLabelTitulo(String texto) {
+        Label label = new Label(texto);
+        label.setStyle("-fx-font-weight: bold; -fx-text-fill: #2980b9; -fx-underline: true;");
+        return label;
+    }
+
 
     private void reimprimirTicket(Factura factura) {
         try {
