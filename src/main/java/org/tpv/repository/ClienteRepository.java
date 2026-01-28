@@ -41,11 +41,18 @@ public class ClienteRepository {
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.setString(1, cliente.getDni());
+            // Gestión de NULL para el DNI (y otros campos)
+            if (cliente.getDni() == null || cliente.getDni().trim().isEmpty()) {
+                ps.setNull(1, Types.VARCHAR);
+            } else {
+                ps.setString(1, cliente.getDni());
+            }
+
             ps.setString(2, cliente.getNombre());
             ps.setString(3, cliente.getTelefono());
             ps.setString(4, cliente.getDireccion());
             ps.setString(5, cliente.getEmail());
+
             ps.executeUpdate();
 
             try (ResultSet rs = ps.getGeneratedKeys()) {

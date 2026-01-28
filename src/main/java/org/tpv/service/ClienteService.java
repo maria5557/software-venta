@@ -50,15 +50,9 @@ public class ClienteService {
             throw new IllegalArgumentException("El nombre es obligatorio");
         }
 
-        // Verificar que no exista ya
-        Cliente existente = clienteRepository.findByDni(dni.trim());
-        if (existente != null) {
-            throw new IllegalStateException("Ya existe un cliente con el DNI: " + dni);
-        }
-
         Cliente cliente = new Cliente(
                 null,
-                dni.trim(),
+                dni!= null ? telefono.trim() : "",
                 nombre.trim(),
                 telefono != null ? telefono.trim() : "",
                 direccion != null ? direccion.trim() : "",

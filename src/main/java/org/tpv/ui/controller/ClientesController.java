@@ -124,15 +124,10 @@ public class ClientesController {
         try {
             clientesObservables.clear();
 
-            // Buscar por DNI
-            Cliente clientePorDni = clienteService.buscarPorDni(busqueda);
-            if (clientePorDni != null) {
-                clientesObservables.add(clientePorDni);
-            }
 
-            // Buscar por nombre
-            List<Cliente> clientesPorNombre = clienteService.buscarPorNombre(busqueda);
-            for (Cliente c : clientesPorNombre) {
+            // Buscar por nombre o por dni
+            List<Cliente> clientes = clienteService.buscarPorNombreODni(busqueda);
+            for (Cliente c : clientes) {
                 if (!clientesObservables.contains(c)) {
                     clientesObservables.add(c);
                 }
