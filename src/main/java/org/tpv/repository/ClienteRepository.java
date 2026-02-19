@@ -123,6 +123,8 @@ public class ClienteRepository {
             ps.setString(3, cliente.getTelefono());
             ps.setString(4, cliente.getDireccion());
             ps.setString(5, cliente.getEmail());
+            ps.setLong(6, cliente.getId());
+
 
             int filasActualizadas = ps.executeUpdate();
 
@@ -130,6 +132,7 @@ public class ClienteRepository {
                 System.out.println("✓ Cliente actualizado en BD: " + cliente.getNombre());
             } else {
                 System.out.println("⚠ No se encontró el cliente para actualizar: " + cliente.getDni());
+                System.out.println("El id proporcionado es: " + cliente.getId());
             }
         }
     }
