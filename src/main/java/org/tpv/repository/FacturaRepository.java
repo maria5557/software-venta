@@ -124,6 +124,10 @@ public class FacturaRepository {
         factura.setTotalSinIva(rs.getBigDecimal("total_sin_iva"));
         factura.setTotalIva(rs.getBigDecimal("total_iva"));
         factura.setTotalConIva(rs.getBigDecimal("total_con_iva"));
+        factura.setMetodoPago(rs.getString("metodo_pago"));
+        factura.setEntregadoCliente(rs.getBigDecimal("entregado_cliente"));
+
+
         return factura;
     }
 
@@ -164,8 +168,10 @@ public class FacturaRepository {
             cliente_id,                 
             cliente_nombre,
             empleado_id,
-            empleado_nombre
-        ) VALUES (?, ?, ?, ?, ?, ?, ?,?,?)
+            empleado_nombre,
+            metodo_pago,
+            entregado_cliente                 
+        ) VALUES (?, ?, ?, ?, ?, ?, ?,?,?,?,?)
         """;
 
         try (Connection conn = DatabaseManager.getConnection()) {
@@ -184,6 +190,8 @@ public class FacturaRepository {
                 ps.setString(7, factura.getClienteNombre());
                 ps.setLong(8,factura.getEmpleadoId());
                 ps.setString(9,factura.getEmpleadoNombre());
+                ps.setString(10, factura.getMetodoPago());
+                ps.setBigDecimal(11, factura.getEntregadoCliente());
 
 
                 ps.executeUpdate();

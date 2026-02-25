@@ -78,6 +78,8 @@ public class DatabaseManager {
                     total_sin_iva REAL,
                     total_iva REAL,
                     total_con_iva REAL,
+                    metodo_pago TEXT DEFAULT 'EFECTIVO',
+                    entregado_cliente DECIMAL(10,2) DEFAULT 0,
                     FOREIGN KEY (cliente_id) REFERENCES cliente(id),
                     FOREIGN KEY (empleado_id) REFERENCES empleado(id)
                 )

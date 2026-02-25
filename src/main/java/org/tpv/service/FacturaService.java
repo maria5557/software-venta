@@ -3,6 +3,7 @@ package org.tpv.service;
 import org.tpv.domain.Factura;
 import org.tpv.repository.FacturaRepository;
 
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -70,6 +71,13 @@ public class FacturaService {
         if (factura.getNumeroFactura() == null || factura.getNumeroFactura().isEmpty()) {
             factura.setNumeroFactura(generarSiguienteNumeroFactura());
         }
+        if (factura.getMetodoPago() == null || factura.getMetodoPago().isEmpty()) {
+            factura.setMetodoPago("EFECTIVO");
+        }
+        if (factura.getEntregadoCliente() == null) {
+            factura.setEntregadoCliente(BigDecimal.ZERO);
+        }
+
         facturaRepository.guardar(factura);
     }
 }

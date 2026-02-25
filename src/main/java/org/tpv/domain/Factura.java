@@ -29,6 +29,10 @@ public class Factura {
     private BigDecimal totalSinIva = BigDecimal.ZERO;
     private BigDecimal totalIva = BigDecimal.ZERO;
     private BigDecimal totalConIva = BigDecimal.ZERO;
+    private String metodoPago;
+    private BigDecimal entregadoCliente;
+
+
 
     public void añadirLinea(LineaFactura linea) {
         lineas.add(linea);

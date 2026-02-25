@@ -11,6 +11,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.TextFieldTableCell;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
 import javafx.util.converter.BigDecimalStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 import org.tpv.config.Configuracion;
@@ -25,6 +26,7 @@ import org.tpv.service.ProductoService;
 import org.tpv.service.VentaService;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.SQLException;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -44,20 +46,26 @@ public class VentaController {
     @FXML private Label lblUsuario;
     @FXML private Label lblFechaHora;
 
-
     @FXML private TableView<LineaFactura> tablaTicket;
-    @FXML private TableColumn<LineaFactura, String> colCodigo;
-    @FXML private TableColumn<LineaFactura, String> colNombre;
-    @FXML private TableColumn<LineaFactura, Integer> colCantidad;
+    @FXML private TableColumn<LineaFactura, String>     colCodigo;
+    @FXML private TableColumn<LineaFactura, String>     colNombre;
+    @FXML private TableColumn<LineaFactura, Integer>    colCantidad;
     @FXML private TableColumn<LineaFactura, BigDecimal> colPrecio;
     @FXML private TableColumn<LineaFactura, BigDecimal> colSubtotal;
-    @FXML private TableColumn<LineaFactura, Integer> colDescuento;
+    @FXML private TableColumn<LineaFactura, Integer>    colDescuento;
 
     @FXML private Label lblTotalSinIva;
     @FXML private Label lblIva;
     @FXML private Label lblTotal;
     @FXML private Label lblClienteActual;
     @FXML private Button btnSeleccionarCliente;
+
+    // Método de pago
+    @FXML private ToggleButton btnPagoEfectivo;
+    @FXML private ToggleButton btnPagoTarjeta;
+    @FXML private VBox panelEfectivo;
+    @FXML private TextField txtEntregado;
+    @FXML private Label lblCambio;
 
     // ===== SERVICIOS Y DATOS =====
     private ProductoService productoService;
@@ -67,1083 +75,625 @@ public class VentaController {
     private ConfiguracionRepository configRepository;
     private ClienteService clienteService;
 
-
+    private final ToggleGroup togglePago = new ToggleGroup();
     private ObservableList<LineaFactura> lineasObservables = FXCollections.observableArrayList();
 
     // ===== INICIALIZACIÓN =====
     @FXML
     public void initialize() {
         System.out.println("✓ Inicializando VentaController...");
-
         try {
-            // Inicializar repositorios y servicios
-            productoService = new ProductoService();
+            productoService  = new ProductoService();
             configRepository = new ConfiguracionRepository();
-            clienteService = new ClienteService();
-
-            // Cargar configuración desde la base de datos
+            clienteService   = new ClienteService();
             config = configRepository.obtenerConfiguracion();
-            System.out.println("✓ Configuración cargada: " + config.getNombreTienda());
 
             ventaService = new VentaService(config);
             ventaService.iniciarVenta();
-
             impresoraService = new ImpresoraService(config);
 
-            // Configurar las columnas de la tabla
             configurarTabla();
+            configurarSelectorPago();
 
-            // Focus en el campo de código
             txtCodigoBarra.requestFocus();
-
             iniciarReloj();
 
-            // Si lblUsuario existe, establecer el nombre de usuario
-            if (lblUsuario != null) {
-                lblUsuario.setText("Usuario: Admin");
-            }
-            // Inicializar label de cliente
-            if (lblClienteActual != null) {
-                actualizarLabelCliente();
-            }
+            if (lblUsuario     != null) lblUsuario.setText("Usuario: Admin");
+            if (lblClienteActual != null) actualizarLabelCliente();
 
-            // ===== OPCIONAL: AÑADIR ATAJOS DE TECLADO =====
-            // Añadir al final del método initialize():
             configurarAtajosTeclado();
-
             System.out.println("✓ VentaController inicializado correctamente");
 
         } catch (Exception e) {
             System.err.println("❌ Error al inicializar VentaController: " + e.getMessage());
             e.printStackTrace();
-            mostrarError("Error de inicialización",
-                    "No se pudo cargar la configuración: " + e.getMessage());
+            mostrarError("Error de inicialización", "No se pudo cargar la configuración: " + e.getMessage());
         }
     }
 
-    /**
-     * Inicia un hilo para actualizar la fecha y hora cada segundo
-     */
+    // ===== CONFIGURAR SELECTOR DE PAGO =====
+    private void configurarSelectorPago() {
+        btnPagoEfectivo.setToggleGroup(togglePago);
+        btnPagoTarjeta.setToggleGroup(togglePago);
+
+        // Efectivo seleccionado por defecto
+        btnPagoEfectivo.setSelected(true);
+        aplicarEstiloToggle(btnPagoEfectivo, true);
+        aplicarEstiloToggle(btnPagoTarjeta, false);
+        panelEfectivo.setVisible(true);
+        panelEfectivo.setManaged(true);
+
+        // Evitar deselección total (siempre uno activo)
+        togglePago.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) oldVal.setSelected(true);
+        });
+    }
+
+    /** Aplica estilo visual al botón según si está seleccionado o no */
+    private void aplicarEstiloToggle(ToggleButton btn, boolean seleccionado) {
+        if (seleccionado) {
+            btn.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10;"
+                    + (btn == btnPagoEfectivo
+                    ? "-fx-background-radius: 6 0 0 6;"
+                    : "-fx-background-radius: 0 6 6 0;")
+                    + "-fx-background-color: #27ae60; -fx-text-fill: white; -fx-cursor: hand;");
+        } else {
+            btn.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10;"
+                    + (btn == btnPagoEfectivo
+                    ? "-fx-background-radius: 6 0 0 6;"
+                    : "-fx-background-radius: 0 6 6 0;")
+                    + "-fx-background-color: #dee2e6; -fx-text-fill: #495057; -fx-cursor: hand;");
+        }
+    }
+
+    /** Llamado desde FXML cuando se pulsa cualquiera de los toggle buttons */
+    @FXML
+    private void onMetodoPagoChanged() {
+        boolean esEfectivo = btnPagoEfectivo.isSelected();
+
+        aplicarEstiloToggle(btnPagoEfectivo, esEfectivo);
+        aplicarEstiloToggle(btnPagoTarjeta, !esEfectivo);
+
+        panelEfectivo.setVisible(esEfectivo);
+        panelEfectivo.setManaged(esEfectivo);
+
+        if (!esEfectivo) {
+            txtEntregado.clear();
+            lblCambio.setText("—");
+        } else {
+            recalcularCambio();
+        }
+
+        ventaService.setMetodoPago(esEfectivo ? "EFECTIVO" : "TARJETA");
+    }
+
+    /** Llamado desde FXML al teclear en el campo de importe entregado */
+    @FXML
+    private void onEntregadoChanged() {
+        recalcularCambio();
+    }
+
+    private void recalcularCambio() {
+        String texto = txtEntregado.getText().trim().replace(",", ".");
+        if (texto.isEmpty()) { lblCambio.setText("—"); return; }
+        try {
+            BigDecimal entregado = new BigDecimal(texto);
+            BigDecimal total     = ventaService.finalizarVenta().getTotalConIva();
+            BigDecimal cambio    = entregado.subtract(total).setScale(2, RoundingMode.HALF_UP);
+            if (cambio.compareTo(BigDecimal.ZERO) >= 0) {
+                lblCambio.setText(String.format("%.2f", cambio));
+                lblCambio.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
+            } else {
+                lblCambio.setText(String.format("%.2f", cambio));
+                lblCambio.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #e74c3c;");
+            }
+        } catch (NumberFormatException e) {
+            lblCambio.setText("—");
+        }
+    }
+
+    private String getMetodoPagoSeleccionado() {
+        return btnPagoTarjeta.isSelected() ? "TARJETA" : "EFECTIVO";
+    }
+
+    /** Devuelve el importe entregado por el cliente (sólo aplica a efectivo) */
+    private BigDecimal getEntregadoCliente() {
+        try {
+            return new BigDecimal(txtEntregado.getText().trim().replace(",", "."));
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    // ===== RELOJ =====
     private void iniciarReloj() {
         Thread reloj = new Thread(() -> {
             while (true) {
                 try {
                     javafx.application.Platform.runLater(() -> {
                         if (lblFechaHora != null) {
-                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
-                            lblFechaHora.setText(java.time.LocalDateTime.now().format(formatter));
+                            DateTimeFormatter f = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+                            lblFechaHora.setText(java.time.LocalDateTime.now().format(f));
                         }
                     });
                     Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    break;
-                }
+                } catch (InterruptedException e) { break; }
             }
         });
         reloj.setDaemon(true);
         reloj.start();
     }
 
-
+    // ===== TABLA =====
     private void configurarTabla() {
-        // ⭐ HACER LA TABLA COMPLETAMENTE EDITABLE ⭐
         tablaTicket.setEditable(true);
 
-        // ========== COLUMNA CÓDIGO (EDITABLE) ==========
-        colCodigo.setCellValueFactory(data ->
-                new SimpleStringProperty(data.getValue().getCodigoProducto()));
-
+        colCodigo.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getCodigoProducto()));
         colCodigo.setCellFactory(TextFieldTableCell.forTableColumn());
-
-        colCodigo.setOnEditCommit(event -> {
-            LineaFactura linea = event.getRowValue();
-            String nuevoCodigo = event.getNewValue();
-
-            if (nuevoCodigo == null || nuevoCodigo.trim().isEmpty()) {
-                mostrarAlerta("Código inválido", "El código no puede estar vacío");
-                tablaTicket.refresh();
-                return;
-            }
-
-            linea.setCodigoProducto(nuevoCodigo.trim());
-            System.out.println("✓ Código modificado: " + linea.getNombreProducto() + " -> " + nuevoCodigo);
+        colCodigo.setOnEditCommit(e -> {
+            if (e.getNewValue() == null || e.getNewValue().trim().isEmpty()) { tablaTicket.refresh(); return; }
+            e.getRowValue().setCodigoProducto(e.getNewValue().trim());
         });
 
-        // ========== COLUMNA NOMBRE (EDITABLE) ==========
-        colNombre.setCellValueFactory(data ->
-                new SimpleStringProperty(data.getValue().getNombreProducto()));
-
+        colNombre.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getNombreProducto()));
         colNombre.setCellFactory(TextFieldTableCell.forTableColumn());
-
-        colNombre.setOnEditCommit(event -> {
-            LineaFactura linea = event.getRowValue();
-            String nuevoNombre = event.getNewValue();
-
-            if (nuevoNombre == null || nuevoNombre.trim().isEmpty()) {
-                mostrarAlerta("Nombre inválido", "El nombre no puede estar vacío");
-                tablaTicket.refresh();
-                return;
-            }
-
-            linea.setNombreProducto(nuevoNombre.trim());
-            System.out.println("✓ Nombre modificado: " + nuevoNombre);
+        colNombre.setOnEditCommit(e -> {
+            if (e.getNewValue() == null || e.getNewValue().trim().isEmpty()) { tablaTicket.refresh(); return; }
+            e.getRowValue().setNombreProducto(e.getNewValue().trim());
         });
 
-        // ========== COLUMNA CANTIDAD (EDITABLE) ==========
-        colCantidad.setCellValueFactory(data ->
-                new SimpleIntegerProperty(data.getValue().getCantidad()).asObject());
-
+        colCantidad.setCellValueFactory(d -> new SimpleIntegerProperty(d.getValue().getCantidad()).asObject());
         colCantidad.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
-
-        colCantidad.setOnEditCommit(event -> {
-            LineaFactura linea = event.getRowValue();
-            Integer nuevaCantidad = event.getNewValue();
-
-            if (nuevaCantidad == null || nuevaCantidad <= 0) {
-                mostrarAlerta("Cantidad inválida", "La cantidad debe ser mayor que 0");
-                tablaTicket.refresh();
-                return;
-            }
-
-            linea.setCantidad(nuevaCantidad);
+        colCantidad.setOnEditCommit(e -> {
+            if (e.getNewValue() == null || e.getNewValue() <= 0) { tablaTicket.refresh(); return; }
+            e.getRowValue().setCantidad(e.getNewValue());
             ventaService.finalizarVenta().recalcularTotales();
             actualizarVista();
-
         });
 
-        // ========== COLUMNA PRECIO (EDITABLE) ==========
-        colPrecio.setCellValueFactory(data ->
-                new SimpleObjectProperty<>(data.getValue().getPrecioUnitario()));
-
+        colPrecio.setCellValueFactory(d -> new SimpleObjectProperty<>(d.getValue().getPrecioUnitario()));
         colPrecio.setCellFactory(TextFieldTableCell.forTableColumn(new BigDecimalStringConverter()));
-
-        colPrecio.setOnEditCommit(event -> {
-            LineaFactura linea = event.getRowValue();
-            BigDecimal nuevoPrecio = event.getNewValue();
-
-            if (nuevoPrecio == null || nuevoPrecio.compareTo(BigDecimal.ZERO) < 0) {
-                mostrarAlerta("Precio inválido", "El precio no puede ser negativo");
-                tablaTicket.refresh();
-                return;
-            }
-
-            linea.setPrecioUnitario(nuevoPrecio);
+        colPrecio.setOnEditCommit(e -> {
+            if (e.getNewValue() == null || e.getNewValue().compareTo(BigDecimal.ZERO) < 0) { tablaTicket.refresh(); return; }
+            e.getRowValue().setPrecioUnitario(e.getNewValue());
             ventaService.finalizarVenta().recalcularTotales();
             actualizarVista();
-
-            System.out.println("✓ Precio modificado: " + linea.getNombreProducto() + " -> " + nuevoPrecio + "€");
         });
 
-        // ========== COLUMNA DESCUENTO (EDITABLE) ==========
-        colDescuento.setCellValueFactory(data ->
-                new SimpleIntegerProperty(data.getValue().getDescuento()).asObject());
-
+        colDescuento.setCellValueFactory(d -> new SimpleIntegerProperty(d.getValue().getDescuento()).asObject());
         colDescuento.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
-
-        colDescuento.setOnEditCommit(event -> {
-            LineaFactura linea = event.getRowValue();
-            Integer nuevoDescuento = event.getNewValue();
-
-            // Si se borra el valor, se pone a 0 automáticamente
-            if (nuevoDescuento == null) {
-                nuevoDescuento = 0;
-            }
-
-            // Validación de rango
-            if (nuevoDescuento < 0 || nuevoDescuento > 100) {
-                mostrarAlerta("Descuento inválido", "El descuento debe estar entre 0 y 100");
-                tablaTicket.refresh();
-                return;
-            }
-
-            linea.setDescuento(nuevoDescuento);
+        colDescuento.setOnEditCommit(e -> {
+            int dto = (e.getNewValue() == null) ? 0 : e.getNewValue();
+            if (dto < 0 || dto > 100) { tablaTicket.refresh(); return; }
+            e.getRowValue().setDescuento(dto);
             ventaService.finalizarVenta().recalcularTotales();
             actualizarVista();
-
-            System.out.println("✓ Descuento modificado: " + linea.getNombreProducto() + " -> " + nuevoDescuento + "%");
         });
 
-        // Formatear la columna de descuento
-        colDescuento.setCellFactory(col -> new TableCell<LineaFactura, Integer>() {
-            @Override
-            protected void updateItem(Integer descuento, boolean empty) {
-                super.updateItem(descuento, empty);
-                if (empty || descuento == null) {
-                    setText(null);
-                    setStyle("");
-                } else {
-                    setText(descuento + "%");
-                    // Resaltar si hay descuento aplicado
-                    if (descuento > 0) {
-                        setStyle("-fx-background-color: #fff3cd; -fx-text-fill: #856404; -fx-font-weight: bold;");
-                    } else {
-                        setStyle("");
-                    }
-                }
+        colSubtotal.setCellValueFactory(d -> new SimpleObjectProperty<>(d.getValue().getTotalConIva()));
+        colSubtotal.setCellFactory(col -> new TableCell<>() {
+            @Override protected void updateItem(BigDecimal v, boolean empty) {
+                super.updateItem(v, empty);
+                if (empty || v == null) { setText(null); setStyle(""); return; }
+                setText(String.format("%.2f€", v));
+                setStyle("-fx-background-color: #f0f0f0; -fx-text-fill: #666;");
             }
         });
 
-        // Aplicar cell factory editable después del formato
-        colDescuento.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
-        colDescuento.setCellFactory(TextFieldTableCell.forTableColumn(new IntegerStringConverter()));
-
-        // ========== COLUMNA SUBTOTAL (SOLO LECTURA - CALCULADO) ==========
-        colSubtotal.setCellValueFactory(data ->
-                new SimpleObjectProperty<>(data.getValue().getTotalConIva()));
-
-        // Formatear columnas de dinero para mostrar
-        colPrecio.setCellFactory(col -> new TableCell<LineaFactura, BigDecimal>() {
-            @Override
-            protected void updateItem(BigDecimal precio, boolean empty) {
-                super.updateItem(precio, empty);
-                if (empty || precio == null) {
-                    setText(null);
-                } else {
-                    setText(String.format("%.2f€", precio));
-                }
-            }
-        });
-
-        // Aplicar el cell factory editable para precio
-        colPrecio.setCellFactory(TextFieldTableCell.forTableColumn(new BigDecimalStringConverter()));
-
-        colSubtotal.setCellFactory(col -> new TableCell<LineaFactura, BigDecimal>() {
-            @Override
-            protected void updateItem(BigDecimal subtotal, boolean empty) {
-                super.updateItem(subtotal, empty);
-                if (empty || subtotal == null) {
-                    setText(null);
-                } else {
-                    setText(String.format("%.2f€", subtotal));
-                }
-                // Destacar visualmente que NO es editable
-                if (!empty) {
-                    setStyle("-fx-background-color: #f0f0f0; -fx-text-fill: #666;");
-                }
-            }
-        });
-
-        // Vincular datos observables a la tabla
         tablaTicket.setItems(lineasObservables);
     }
 
-    // ===== EVENTO: AÑADIR PRODUCTO =====
+    // ===== AÑADIR PRODUCTO =====
     @FXML
     private void onAñadirProducto() {
         String codigo = txtCodigoBarra.getText().trim();
-
-        // Si el campo está vacío, permitir crear producto sin código
         if (codigo.isEmpty()) {
             try {
-                Producto producto = mostrarDialogoCrearProductoSinCodigo();
-                if (producto != null) {
-                    ventaService.añadirProducto(producto);
-                    System.out.println("✓ Producto añadido: " + producto.getNombre());
-                    actualizarVista();
-                }
-                txtCodigoBarra.clear();
-                txtCodigoBarra.requestFocus();
-            } catch (SQLException e) {
-                mostrarError("Error de base de datos",
-                        "No se pudo procesar el producto: " + e.getMessage());
-                e.printStackTrace();
-            }
+                Producto p = mostrarDialogoCrearProductoSinCodigo();
+                if (p != null) { ventaService.añadirProducto(p); actualizarVista(); }
+            } catch (SQLException e) { mostrarError("Error BD", e.getMessage()); }
+            txtCodigoBarra.clear(); txtCodigoBarra.requestFocus();
             return;
         }
-
         try {
-            Producto producto = productoService.buscarPorCodigo(codigo);
-
-            if (producto == null) {
-                System.out.println("⚠ Producto no encontrado: " + codigo);
-                producto = mostrarDialogoCrearProducto(codigo);
-
-                if (producto == null) {
-                    txtCodigoBarra.clear();
-                    txtCodigoBarra.requestFocus();
-                    return;
-                }
+            Producto p = productoService.buscarPorCodigo(codigo);
+            if (p == null) {
+                p = mostrarDialogoCrearProducto(codigo);
+                if (p == null) { txtCodigoBarra.clear(); txtCodigoBarra.requestFocus(); return; }
             }
-
-            ventaService.añadirProducto(producto);
-            System.out.println("✓ Producto añadido: " + producto.getNombre());
-
+            ventaService.añadirProducto(p);
             actualizarVista();
-
-            txtCodigoBarra.clear();
-            txtCodigoBarra.requestFocus();
-
-        } catch (SQLException e) {
-            mostrarError("Error de base de datos",
-                    "No se pudo procesar el producto: " + e.getMessage());
-            e.printStackTrace();
-        }
+            txtCodigoBarra.clear(); txtCodigoBarra.requestFocus();
+        } catch (SQLException e) { mostrarError("Error BD", e.getMessage()); }
     }
 
-
-    // ===== EVENTO: INCREMENTAR CANTIDAD (+1) =====
+    // ===== INCREMENTAR / DECREMENTAR / ELIMINAR =====
     @FXML
     private void onIncrementar() {
-        LineaFactura lineaSeleccionada = tablaTicket.getSelectionModel().getSelectedItem();
-
-        if (lineaSeleccionada == null) {
-            mostrarAlerta("Ninguna línea seleccionada",
-                    "Selecciona una línea de la tabla para incrementar su cantidad");
-            return;
-        }
-
-        lineaSeleccionada.setCantidad(lineaSeleccionada.getCantidad() + 1);
+        LineaFactura s = tablaTicket.getSelectionModel().getSelectedItem();
+        if (s == null) { mostrarAlerta("Sin selección", "Selecciona una línea"); return; }
+        s.setCantidad(s.getCantidad() + 1);
         ventaService.finalizarVenta().recalcularTotales();
         actualizarVista();
-
-        System.out.println("✓ Cantidad incrementada: " + lineaSeleccionada.getNombreProducto()
-                + " -> " + lineaSeleccionada.getCantidad());
     }
 
-    // ===== EVENTO: DECREMENTAR CANTIDAD (-1) =====
     @FXML
     private void onDecrementar() {
-        LineaFactura lineaSeleccionada = tablaTicket.getSelectionModel().getSelectedItem();
-
-        if (lineaSeleccionada == null) {
-            mostrarAlerta("Ninguna línea seleccionada",
-                    "Selecciona una línea de la tabla para decrementar su cantidad");
+        LineaFactura s = tablaTicket.getSelectionModel().getSelectedItem();
+        if (s == null) { mostrarAlerta("Sin selección", "Selecciona una línea"); return; }
+        if (s.getCantidad() == 1) {
+            Alert c = new Alert(Alert.AlertType.CONFIRMATION, "¿Eliminar esta línea?");
+            c.setTitle("Eliminar línea"); c.setHeaderText("La cantidad es 1");
+            if (c.showAndWait().filter(b -> b == ButtonType.OK).isPresent()) onEliminarLinea();
             return;
         }
-
-        int cantidadActual = lineaSeleccionada.getCantidad();
-
-        if (cantidadActual == 1) {
-            Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
-            confirmacion.setTitle("Eliminar línea");
-            confirmacion.setHeaderText("La cantidad es 1");
-            confirmacion.setContentText("¿Deseas eliminar esta línea del ticket?");
-
-            Optional<ButtonType> resultado = confirmacion.showAndWait();
-            if (resultado.isPresent() && resultado.get() == ButtonType.OK) {
-                onEliminarLinea();
-            }
-            return;
-        }
-
-        lineaSeleccionada.setCantidad(cantidadActual - 1);
+        s.setCantidad(s.getCantidad() - 1);
         ventaService.finalizarVenta().recalcularTotales();
         actualizarVista();
-
-        System.out.println("✓ Cantidad decrementada: " + lineaSeleccionada.getNombreProducto()
-                + " -> " + lineaSeleccionada.getCantidad());
     }
 
-    // ===== EVENTO: ELIMINAR LÍNEA =====
     @FXML
     private void onEliminarLinea() {
-        LineaFactura lineaSeleccionada = tablaTicket.getSelectionModel().getSelectedItem();
-
-        if (lineaSeleccionada == null) {
-            mostrarAlerta("Ninguna línea seleccionada",
-                    "Selecciona una línea de la tabla para eliminarla");
-            return;
-        }
-
-        Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmacion.setTitle("Eliminar línea");
-        confirmacion.setHeaderText("¿Eliminar este producto?");
-        confirmacion.setContentText(lineaSeleccionada.getNombreProducto() +
-                " (x" + lineaSeleccionada.getCantidad() + ")");
-
-        Optional<ButtonType> resultado = confirmacion.showAndWait();
-        if (resultado.isEmpty() || resultado.get() != ButtonType.OK) {
-            return;
-        }
-
-        Factura factura = ventaService.finalizarVenta();
-        factura.getLineas().remove(lineaSeleccionada);
-        factura.recalcularTotales();
-
-        actualizarVista();
-
-        System.out.println("✓ Línea eliminada: " + lineaSeleccionada.getNombreProducto());
+        LineaFactura s = tablaTicket.getSelectionModel().getSelectedItem();
+        if (s == null) { mostrarAlerta("Sin selección", "Selecciona una línea"); return; }
+        Alert c = new Alert(Alert.AlertType.CONFIRMATION);
+        c.setTitle("Eliminar línea"); c.setHeaderText("¿Eliminar " + s.getNombreProducto() + "?");
+        if (c.showAndWait().filter(b -> b == ButtonType.OK).isEmpty()) return;
+        Factura f = ventaService.finalizarVenta();
+        f.getLineas().remove(s); f.recalcularTotales(); actualizarVista();
     }
 
-    // ===== DIÁLOGO: CREAR NUEVO PRODUCTO =====
-    private Producto mostrarDialogoCrearProducto(String codigo) throws SQLException {
-        Dialog<Producto> dialog = new Dialog<>();
-        dialog.setTitle("Producto no encontrado");
-        dialog.setHeaderText("El código '" + codigo + "' no existe en la base de datos.\n¿Deseas crear este producto?");
-
-        ButtonType btnCrear = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
-        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().addAll(btnCrear, btnCancelar);
-
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
-
-        TextField txtNombre = new TextField();
-        txtNombre.setPromptText("Nombre del producto");
-
-        TextField txtPrecio = new TextField();
-        txtPrecio.setPromptText("Precio (con IVA)");
-        txtPrecio.setText("0.00");
-
-        grid.add(new Label("Código:"), 0, 0);
-        grid.add(new Label(codigo), 1, 0);
-        grid.add(new Label("Nombre:"), 0, 1);
-        grid.add(txtNombre, 1, 1);
-        grid.add(new Label("Precio:"), 0, 2);
-        grid.add(txtPrecio, 1, 2);
-
-        dialog.getDialogPane().setContent(grid);
-
-        Node botonCrear = dialog.getDialogPane().lookupButton(btnCrear);
-        botonCrear.setDisable(true);
-
-        // VALIDACIÓN EN TIEMPO REAL
-        ChangeListener<String> validador = (obs, oldVal, newVal) -> {
-
-            String nombre = txtNombre.getText().trim();
-            String precioStr = txtPrecio.getText().trim().replace(",", ".");
-
-            boolean nombreValido = !nombre.isEmpty();
-            boolean precioValido;
-
-            try {
-                BigDecimal precio = new BigDecimal(precioStr);
-                precioValido = precio.compareTo(BigDecimal.ZERO) > 0;
-            } catch (Exception e) {
-                precioValido = false;
-            }
-
-            botonCrear.setDisable(!(nombreValido && precioValido));
-        };
-        txtNombre.textProperty().addListener(validador);
-        txtPrecio.textProperty().addListener(validador);
-
-        javafx.application.Platform.runLater(() -> txtNombre.requestFocus());
-
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == btnCrear) {
-                try {
-                    String nombre = txtNombre.getText().trim();
-                    String precioStr = txtPrecio.getText().trim().replace(",", ".");
-
-                    BigDecimal precio = new BigDecimal(precioStr);
-
-                    Producto nuevoProducto = productoService.crearProducto(codigo, nombre, precio);
-                    System.out.println("✓ Producto creado: " + nuevoProducto.getNombre()
-                            + " - " + nuevoProducto.getPrecioBase() + "€");
-
-                    return nuevoProducto;
-
-                } catch (SQLException e) {
-                    mostrarError("Error al crear producto", e.getMessage());
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-            return null;
-        });
-
-        Optional<Producto> resultado = dialog.showAndWait();
-        return resultado.orElse(null);
-    }
-
-    /**
-     * Muestra diálogo para crear producto sin código de barras
-     */
-    private Producto mostrarDialogoCrearProductoSinCodigo() throws SQLException {
-        Dialog<Producto> dialog = new Dialog<>();
-        dialog.setTitle("Crear producto sin código");
-        dialog.setHeaderText("Introduce los datos del producto");
-
-        ButtonType btnCrear = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
-        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().addAll(btnCrear, btnCancelar);
-
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
-
-        TextField txtCodigo = new TextField();
-        txtCodigo.setPromptText("Opcional - Código o referencia");
-
-        TextField txtNombre = new TextField();
-        txtNombre.setPromptText("Nombre del producto");
-
-        TextField txtPrecio = new TextField();
-        txtPrecio.setPromptText("Precio con IVA");
-        txtPrecio.setText("0.00");
-
-        grid.add(new Label("Código:"), 0, 0);
-        grid.add(txtCodigo, 1, 0);
-        grid.add(new Label("Nombre:*"), 0, 1);
-        grid.add(txtNombre, 1, 1);
-        grid.add(new Label("Precio:*"), 0, 2);
-        grid.add(txtPrecio, 1, 2);
-
-        dialog.getDialogPane().setContent(grid);
-
-        Node botonCrear = dialog.getDialogPane().lookupButton(btnCrear);
-        botonCrear.setDisable(true);
-
-        // VALIDACIÓN EN TIEMPO REAL
-        ChangeListener<String> validador = (obs, oldVal, newVal) -> {
-            String nombre = txtNombre.getText().trim();
-            String precioStr = txtPrecio.getText().trim().replace(",", ".");
-
-            boolean nombreValido = !nombre.isEmpty();
-            boolean precioValido;
-
-            try {
-                BigDecimal precio = new BigDecimal(precioStr);
-                precioValido = precio.compareTo(BigDecimal.ZERO) > 0;
-            } catch (Exception e) {
-                precioValido = false;
-            }
-
-            botonCrear.setDisable(!(nombreValido && precioValido));
-        };
-        txtNombre.textProperty().addListener(validador);
-        txtPrecio.textProperty().addListener(validador);
-
-        javafx.application.Platform.runLater(() -> txtNombre.requestFocus());
-
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == btnCrear) {
-                try {
-                    String codigo = txtCodigo.getText().trim();
-                    String nombre = txtNombre.getText().trim();
-                    String precioStr = txtPrecio.getText().trim().replace(",", ".");
-
-                    // Si no hay código, generar uno automático
-                    if (codigo.isEmpty()) {
-                        codigo = "PROD-" + System.currentTimeMillis();
-                    }
-
-                    BigDecimal precio = new BigDecimal(precioStr);
-
-                    Producto nuevoProducto = productoService.crearProducto(codigo, nombre, precio);
-                    System.out.println("✓ Producto creado: " + nuevoProducto.getNombre()
-                            + " - " + nuevoProducto.getPrecioBase() + "€");
-
-                    return nuevoProducto;
-
-                } catch (SQLException e) {
-                    mostrarError("Error al crear producto", e.getMessage());
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-            return null;
-        });
-
-        Optional<Producto> resultado = dialog.showAndWait();
-        return resultado.orElse(null);
-    }
-
-
-    // ===== EVENTO: NUEVA VENTA =====
+    // ===== COBRAR =====
     @FXML
-    private void onNuevaVenta() {
-        if (!lineasObservables.isEmpty()) {
-            Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
-            confirmacion.setTitle("Nueva venta");
-            confirmacion.setHeaderText("¿Deseas iniciar una nueva venta?");
-            confirmacion.setContentText("Se perderá la venta actual si no ha sido cobrada");
+    private void onCobrar() {
+        if (lineasObservables.isEmpty()) { mostrarAlerta("Venta vacía", "Añade productos antes de cobrar"); return; }
 
-            Optional<ButtonType> resultado = confirmacion.showAndWait();
-            if (resultado.isEmpty() || resultado.get() != ButtonType.OK) {
+        String metodoPago = getMetodoPagoSeleccionado();
+
+        // Validación efectivo: importe entregado >= total
+        if (metodoPago.equals("EFECTIVO")) {
+            BigDecimal entregado = getEntregadoCliente();
+            BigDecimal total     = ventaService.finalizarVenta().getTotalConIva();
+            if (entregado.compareTo(BigDecimal.ZERO) <= 0) {
+                mostrarAlerta("Importe no introducido", "Introduce el importe que entrega el cliente");
+                txtEntregado.requestFocus();
+                return;
+            }
+            if (entregado.compareTo(total) < 0) {
+                mostrarAlerta("Importe insuficiente",
+                        String.format("El cliente entrega %.2f€ pero el total es %.2f€", entregado, total));
+                txtEntregado.requestFocus();
                 return;
             }
         }
 
+        // Registrar método de pago e importe entregado en la factura
+        ventaService.setMetodoPago(metodoPago);
+        if (metodoPago.equals("EFECTIVO")) {
+            ventaService.setEntregadoCliente(getEntregadoCliente());
+        }
+
+        // Guardar en BD
+        Factura factura = ventaService.finalizarVenta();
+        try {
+            ventaService.guardarVenta();
+            System.out.println("✓ Factura guardada: " + factura.getNumeroFactura());
+        } catch (SQLException e) {
+            mostrarError("Error al guardar", e.getMessage());
+            return;
+        }
+
+        actualizarProductosEnBD(factura);
+        actualizarClienteEnBD();
+
+        // Diálogo de confirmación
+        String clienteInfo  = factura.getClienteNombre() != null ? "\nCliente: " + factura.getClienteNombre() : "";
+        String pagoInfo     = metodoPago.equals("TARJETA") ? "💳 Tarjeta" : "💵 Efectivo";
+        String cambioInfo   = "";
+        if (metodoPago.equals("EFECTIVO")) {
+            BigDecimal entregado = factura.getEntregadoCliente();
+            BigDecimal cambio    = entregado.subtract(factura.getTotalConIva()).setScale(2, RoundingMode.HALF_UP);
+            cambioInfo = String.format("\nEntrega: %.2f€   Cambio: %.2f€", entregado, cambio);
+        }
+
+        Alert conf = new Alert(Alert.AlertType.CONFIRMATION);
+        conf.setTitle("Cobro realizado");
+        conf.setHeaderText("✓ Venta finalizada correctamente");
+        conf.setContentText(String.format(
+                "═══════════════════════════════\nFactura: %s%s\n═══════════════════════════════\nBase imponible: %.2f€\nIVA (%d%%):      %.2f€\n───────────────────────────────\nTOTAL:          %.2f€\n═══════════════════════════════\nPago: %s%s\n\n¿Deseas imprimir el ticket?",
+                factura.getNumeroFactura(), clienteInfo,
+                factura.getTotalSinIva(), config.getIvaGeneral(), factura.getTotalIva(),
+                factura.getTotalConIva(), pagoInfo, cambioInfo
+        ));
+
+        ButtonType btnImprimir    = new ButtonType("Imprimir");
+        ButtonType btnNoImprimir  = new ButtonType("No imprimir");
+        ButtonType btnCancelarFin = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        conf.getButtonTypes().setAll(btnImprimir, btnNoImprimir, btnCancelarFin);
+
+        Optional<ButtonType> res = conf.showAndWait();
+        if (res.isPresent()) {
+            if (res.get() == btnImprimir)    imprimirTicket(factura);
+            else if (res.get() == btnCancelarFin) return;
+        }
+
+        System.out.println("✓ Venta cobrada: " + factura.getTotalConIva() + "€ (" + metodoPago + ")");
+        onNuevaVenta();
+    }
+
+    // ===== NUEVA VENTA =====
+    @FXML
+    private void onNuevaVenta() {
+        if (!lineasObservables.isEmpty()) {
+            Alert c = new Alert(Alert.AlertType.CONFIRMATION, "Se perderá la venta actual si no ha sido cobrada");
+            c.setTitle("Nueva venta"); c.setHeaderText("¿Iniciar nueva venta?");
+            if (c.showAndWait().filter(b -> b == ButtonType.OK).isEmpty()) return;
+        }
         ventaService.iniciarVenta();
         lineasObservables.clear();
         actualizarTotales(new Factura());
         txtCodigoBarra.clear();
+        txtEntregado.clear();
+        lblCambio.setText("—");
+        // Restablecer selector a efectivo
+        btnPagoEfectivo.setSelected(true);
+        aplicarEstiloToggle(btnPagoEfectivo, true);
+        aplicarEstiloToggle(btnPagoTarjeta, false);
+        panelEfectivo.setVisible(true);
+        panelEfectivo.setManaged(true);
         txtCodigoBarra.requestFocus();
-
-        System.out.println("✓ Nueva venta iniciada");
     }
 
-    // ===== EVENTO: COBRAR =====
-    @FXML
-    private void onCobrar() {
-        if (lineasObservables.isEmpty()) {
-            mostrarAlerta("Venta vacía", "Debes añadir productos antes de cobrar");
-            return;
-        }
-
-        Factura factura = ventaService.finalizarVenta();
-        try {
-            ventaService.guardarVenta();
-            System.out.println("✓ Factura guardada en la BD: " + factura.getNumeroFactura());
-        } catch (SQLException e) {
-            mostrarError("Error al guardar la factura",
-                    "No se pudo guardar la venta en la base de datos:\n" + e.getMessage());
-            e.printStackTrace();
-            return;
-        }
-
-
-        // ACTUALIZAR PRODUCTOS EN LA BD CON LOS CAMBIOS
-        actualizarProductosEnBD(factura);
-
-        // ACTUALIZAR CLIENTE EN LA BD SI HUBO CAMBIOS
-        actualizarClienteEnBD();
-
-        // MOSTRAR DIÁLOGO DE CONFIRMACIÓN CON OPCIÓN DE IMPRIMIR
-        Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmacion.setTitle("Cobro realizado");
-        confirmacion.setHeaderText("✓ Venta finalizada correctamente");
-
-        String clienteInfo = factura.getClienteNombre() != null ?
-                "\nCliente: " + factura.getClienteNombre() : "";
-
-        confirmacion.setContentText(String.format(
-                """
-                ═══════════════════════════════
-                Factura: %s%s
-                ═══════════════════════════════
-                Base imponible: %.2f€
-                IVA (21%%):      %.2f€
-                ───────────────────────────────
-                TOTAL:          %.2f€
-                ═══════════════════════════════
-                
-                Artículos: %d
-                
-                ¿Deseas imprimir el ticket?
-                """,
-                factura.getNumeroFactura(),
-                clienteInfo,
-                factura.getTotalSinIva(),
-                factura.getTotalIva(),
-                factura.getTotalConIva(),
-                factura.getLineas().size()
-        ));
-
-        ButtonType btnImprimir = new ButtonType("Imprimir");
-        ButtonType btnNoImprimir = new ButtonType("No imprimir");
+    // ===== DIÁLOGOS PRODUCTO =====
+    private Producto mostrarDialogoCrearProducto(String codigo) throws SQLException {
+        Dialog<Producto> dialog = new Dialog<>();
+        dialog.setTitle("Producto no encontrado");
+        dialog.setHeaderText("'" + codigo + "' no existe. ¿Crear producto?");
+        ButtonType btnCrear = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
         ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnCrear, btnCancelar);
 
-        confirmacion.getButtonTypes().setAll(btnImprimir, btnNoImprimir, btnCancelar);
+        GridPane g = new GridPane(); g.setHgap(10); g.setVgap(10);
+        g.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
+        TextField txtNombre = new TextField(); txtNombre.setPromptText("Nombre");
+        TextField txtPrecio = new TextField("0.00"); txtPrecio.setPromptText("Precio con IVA");
+        g.add(new Label("Código:"), 0, 0); g.add(new Label(codigo), 1, 0);
+        g.add(new Label("Nombre:"), 0, 1); g.add(txtNombre, 1, 1);
+        g.add(new Label("Precio:"), 0, 2); g.add(txtPrecio, 1, 2);
+        dialog.getDialogPane().setContent(g);
 
-        Optional<ButtonType> resultado = confirmacion.showAndWait();
+        Node btn = dialog.getDialogPane().lookupButton(btnCrear); btn.setDisable(true);
+        ChangeListener<String> v = (o, ov, nv) -> {
+            try { btn.setDisable(txtNombre.getText().trim().isEmpty()
+                    || new BigDecimal(txtPrecio.getText().trim().replace(",", ".")).compareTo(BigDecimal.ZERO) <= 0); }
+            catch (Exception ex) { btn.setDisable(true); }
+        };
+        txtNombre.textProperty().addListener(v); txtPrecio.textProperty().addListener(v);
+        javafx.application.Platform.runLater(txtNombre::requestFocus);
 
-        if (resultado.isPresent()) {
-            if (resultado.get() == btnImprimir) {
-                imprimirTicket(factura);
-            } else if (resultado.get() == btnNoImprimir) {
-                System.out.println("✓ Venta cobrada sin imprimir: " + factura.getTotalConIva() + "€");
-            } else {
-                // Cancelar - no hacer nada, mantener la venta actual
-                return;
-            }
-        }
-
-        System.out.println("✓ Venta cobrada: " + factura.getTotalConIva() + "€");
-        onNuevaVenta();
+        dialog.setResultConverter(b -> {
+            if (b != btnCrear) return null;
+            try { return productoService.crearProducto(codigo, txtNombre.getText().trim(),
+                    new BigDecimal(txtPrecio.getText().trim().replace(",", "."))); }
+            catch (SQLException e) { mostrarError("Error", e.getMessage()); return null; }
+        });
+        return dialog.showAndWait().orElse(null);
     }
 
+    private Producto mostrarDialogoCrearProductoSinCodigo() throws SQLException {
+        Dialog<Producto> dialog = new Dialog<>();
+        dialog.setTitle("Crear producto"); dialog.setHeaderText("Introduce los datos del producto");
+        ButtonType btnCrear = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnCrear, btnCancelar);
 
-    // ===== ACTUALIZAR PRODUCTOS EN LA BD =====
-    private void actualizarProductosEnBD(Factura factura) {
-        for (LineaFactura linea : factura.getLineas()) {
+        GridPane g = new GridPane(); g.setHgap(10); g.setVgap(10);
+        g.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
+        TextField txtCodigo = new TextField(); txtCodigo.setPromptText("Opcional");
+        TextField txtNombre = new TextField(); txtNombre.setPromptText("Nombre");
+        TextField txtPrecio = new TextField("0.00");
+        g.add(new Label("Código:"),  0, 0); g.add(txtCodigo, 1, 0);
+        g.add(new Label("Nombre:*"), 0, 1); g.add(txtNombre, 1, 1);
+        g.add(new Label("Precio:*"), 0, 2); g.add(txtPrecio, 1, 2);
+        dialog.getDialogPane().setContent(g);
+
+        Node btn = dialog.getDialogPane().lookupButton(btnCrear); btn.setDisable(true);
+        ChangeListener<String> v = (o, ov, nv) -> {
+            try { btn.setDisable(txtNombre.getText().trim().isEmpty()
+                    || new BigDecimal(txtPrecio.getText().trim().replace(",", ".")).compareTo(BigDecimal.ZERO) <= 0); }
+            catch (Exception ex) { btn.setDisable(true); }
+        };
+        txtNombre.textProperty().addListener(v); txtPrecio.textProperty().addListener(v);
+        javafx.application.Platform.runLater(txtNombre::requestFocus);
+
+        dialog.setResultConverter(b -> {
+            if (b != btnCrear) return null;
             try {
-                // Buscar el producto en la BD
-                Producto producto = productoService.buscarPorCodigo(linea.getCodigoProducto());
-
-                if (producto != null) {
-                    // Verificar si hubo cambios
-                    boolean cambios = false;
-
-                    if (!producto.getNombre().equals(linea.getNombreProducto())) {
-                        producto.setNombre(linea.getNombreProducto());
-                        cambios = true;
-                    }
-
-                    if (producto.getPrecioBase().compareTo(linea.getPrecioUnitario()) != 0) {
-                        producto.setPrecioBase(linea.getPrecioUnitario());
-                        cambios = true;
-                    }
-
-                    // Si hubo cambios, actualizar en la BD
-                    if (cambios) {
-                        productoService.actualizarProducto(producto);
-                        System.out.println("✓ Producto actualizado en BD: " + producto.getNombre());
-                    }
-                }
-            } catch (SQLException e) {
-                System.err.println("⚠ Error actualizando producto: " + linea.getCodigoProducto());
-                e.printStackTrace();
-            }
-        }
+                String cod = txtCodigo.getText().trim();
+                if (cod.isEmpty()) cod = "PROD-" + System.currentTimeMillis();
+                return productoService.crearProducto(cod, txtNombre.getText().trim(),
+                        new BigDecimal(txtPrecio.getText().trim().replace(",", ".")));
+            } catch (SQLException e) { mostrarError("Error", e.getMessage()); return null; }
+        });
+        return dialog.showAndWait().orElse(null);
     }
 
-    private void imprimirTicket(Factura factura) {
-        // Obtener impresoras disponibles
-        String[] impresoras = impresoraService.obtenerImpresorasDisponibles();
-
-        if (impresoras.length == 0) {
-            mostrarError("Sin impresoras",
-                    "No se detectaron impresoras en el sistema.\n" +
-                            "Verifica que la impresora esté conectada y los drivers instalados.");
-            return;
-        }
-
-        // Si solo hay una impresora, usarla directamente
-        if (impresoras.length == 1) {
-            try {
-                impresoraService.imprimirTicket(factura, impresoras[0]);
-
-                Alert info = new Alert(Alert.AlertType.INFORMATION);
-                info.setTitle("Impresión exitosa");
-                info.setHeaderText("Ticket impreso correctamente");
-                info.setContentText("Impresora: " + impresoras[0]);
-                info.showAndWait();
-
-                System.out.println("✓ Ticket impreso en: " + impresoras[0]);
-
-            } catch (Exception e) {
-                mostrarError("Error al imprimir",
-                        "No se pudo imprimir el ticket:\n" + e.getMessage());
-                e.printStackTrace();
-            }
-            return;
-        }
-
-        // Si hay múltiples impresoras, mostrar diálogo de selección
-        ChoiceDialog<String> dialog = new ChoiceDialog<>(impresoras[0], impresoras);
-        dialog.setTitle("Seleccionar impresora");
-        dialog.setHeaderText("Selecciona la impresora para el ticket");
-        dialog.setContentText("Impresora:");
-
-        Optional<String> seleccion = dialog.showAndWait();
-
-        if (seleccion.isPresent()) {
-            try {
-                impresoraService.imprimirTicket(factura, seleccion.get());
-
-                Alert info = new Alert(Alert.AlertType.INFORMATION);
-                info.setTitle("Impresión exitosa");
-                info.setHeaderText("Ticket impreso correctamente");
-                info.setContentText("Impresora: " + seleccion.get());
-                info.showAndWait();
-
-                System.out.println("✓ Ticket impreso en: " + seleccion.get());
-
-            } catch (Exception e) {
-                mostrarError("Error al imprimir",
-                        "No se pudo imprimir el ticket:\n" + e.getMessage());
-                e.printStackTrace();
-            }
-        }
-    }
-
-    // ===== MÉTODOS AUXILIARES =====
-
-    /**
-     * Abre el diálogo para buscar y seleccionar un cliente
-     */
+    // ===== CLIENTE =====
     @FXML
     private void onSeleccionarCliente() {
         try {
-            // Crear diálogo de opciones
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-            alert.setTitle("Seleccionar Cliente");
-            alert.setHeaderText("¿Qué deseas hacer?");
-
-            ButtonType btnBuscar = new ButtonType("Buscar cliente");
-            ButtonType btnNuevo = new ButtonType("Nuevo cliente");
-            ButtonType btnContado = new ButtonType("Cliente al contado");
-            ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
-
-            alert.getButtonTypes().setAll(btnBuscar, btnNuevo, btnContado, btnCancelar);
-
-            Optional<ButtonType> resultado = alert.showAndWait();
-
-            if (resultado.isPresent()) {
-                if (resultado.get() == btnBuscar) {
-                    buscarCliente();
-                } else if (resultado.get() == btnNuevo) {
-                    crearNuevoCliente();
-                } else if (resultado.get() == btnContado) {
-                    ventaService.asignarCliente(clienteService.obtenerClientePorDefecto());
-                    actualizarLabelCliente();
-                }
-            }
-
-        } catch (Exception e) {
-            mostrarError("Error", "No se pudo gestionar el cliente: " + e.getMessage());
-            e.printStackTrace();
-        }
+            Alert a = new Alert(Alert.AlertType.CONFIRMATION);
+            a.setTitle("Cliente"); a.setHeaderText("¿Qué deseas hacer?");
+            ButtonType bBuscar  = new ButtonType("Buscar");
+            ButtonType bNuevo   = new ButtonType("Nuevo");
+            ButtonType bContado = new ButtonType("Al contado");
+            ButtonType bCancel  = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+            a.getButtonTypes().setAll(bBuscar, bNuevo, bContado, bCancel);
+            a.showAndWait().ifPresent(r -> {
+                try {
+                    if (r == bBuscar)       buscarCliente();
+                    else if (r == bNuevo)   crearNuevoCliente();
+                    else if (r == bContado) { ventaService.asignarCliente(clienteService.obtenerClientePorDefecto()); actualizarLabelCliente(); }
+                } catch (SQLException e) { mostrarError("Error", e.getMessage()); }
+            });
+        } catch (Exception e) { mostrarError("Error", e.getMessage()); }
     }
 
-    /**
-     * Busca un cliente por DNI o nombre
-     */
     private void buscarCliente() throws SQLException {
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("Buscar Cliente");
-        dialog.setHeaderText("Introduce el DNI o nombre del cliente");
-        dialog.setContentText("Búsqueda:");
-
-        Optional<String> resultado = dialog.showAndWait();
-
-        if (resultado.isPresent() && !resultado.get().trim().isEmpty()) {
-            String busqueda = resultado.get().trim();
-
-            List<Cliente> clientes = clienteService.buscarPorNombreODni(busqueda);
-
-            if (clientes.isEmpty()) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("No encontrado");
-                alert.setHeaderText("Cliente no encontrado");
-                alert.setContentText("¿Deseas crear un nuevo cliente?");
-
-                ButtonType btnSi = new ButtonType("Sí");
-                ButtonType btnNo = new ButtonType("No", ButtonBar.ButtonData.CANCEL_CLOSE);
-                alert.getButtonTypes().setAll(btnSi, btnNo);
-
-                Optional<ButtonType> respuesta = alert.showAndWait();
-                if (respuesta.isPresent() && respuesta.get() == btnSi) {
-                    crearNuevoCliente();
-                }
-                return;
-            }
-
-            Cliente clienteAsignado;
-            // Si hay múltiples resultados, mostrar lista para elegir
-            if (clientes.size() > 1) {
-                List<String> opciones = clientes.stream()
-                        .map(c -> c.getNombre() + " - " + c.getDni())
-                        .toList();
-
-                ChoiceDialog<String> choiceDialog = new ChoiceDialog<>(opciones.get(0), opciones);
-                choiceDialog.setTitle("Seleccionar Cliente");
-                choiceDialog.setHeaderText("Se encontraron múltiples clientes");
-                choiceDialog.setContentText("Elige uno:");
-
-                Optional<String> seleccion = choiceDialog.showAndWait();
-                if (seleccion.isPresent()) {
-                    int index = opciones.indexOf(seleccion.get());
-                    clienteAsignado = clientes.get(index);
-                } else {
+        TextInputDialog d = new TextInputDialog();
+        d.setTitle("Buscar Cliente"); d.setHeaderText("DNI o nombre"); d.setContentText("Búsqueda:");
+        d.showAndWait().ifPresent(busq -> {
+            if (busq.trim().isEmpty()) return;
+            try {
+                List<Cliente> lista = clienteService.buscarPorNombreODni(busq.trim());
+                if (lista.isEmpty()) {
+                    Alert i = new Alert(Alert.AlertType.INFORMATION, "¿Crear nuevo cliente?");
+                    i.setTitle("No encontrado"); i.setHeaderText("Cliente no encontrado");
+                    ButtonType si = new ButtonType("Sí"), no = new ButtonType("No", ButtonBar.ButtonData.CANCEL_CLOSE);
+                    i.getButtonTypes().setAll(si, no);
+                    if (i.showAndWait().filter(r -> r == si).isPresent()) crearNuevoCliente();
                     return;
                 }
-            } else {
-                clienteAsignado = clientes.get(0);
-            }
-
-
-            // Asignar el cliente a la venta
-            ventaService.asignarCliente(clienteAsignado);
-            actualizarLabelCliente();
-
-            System.out.println("✓ Cliente asignado: " + clienteAsignado.getNombre());
-        }
+                Cliente elegido;
+                if (lista.size() > 1) {
+                    List<String> ops = lista.stream().map(c -> c.getNombre() + " - " + c.getDni()).toList();
+                    ChoiceDialog<String> ch = new ChoiceDialog<>(ops.get(0), ops);
+                    ch.setTitle("Seleccionar"); ch.setHeaderText("Múltiples resultados"); ch.setContentText("Elige:");
+                    Optional<String> sel = ch.showAndWait();
+                    if (sel.isEmpty()) return;
+                    elegido = lista.get(ops.indexOf(sel.get()));
+                } else elegido = lista.get(0);
+                ventaService.asignarCliente(elegido); actualizarLabelCliente();
+            } catch (SQLException ex) { mostrarError("Error", ex.getMessage()); }
+        });
     }
 
-    /**
-     * Crea un nuevo cliente con validación en tiempo real
-     */
     private void crearNuevoCliente() throws SQLException {
         Dialog<Cliente> dialog = new Dialog<>();
-        dialog.setTitle("Nuevo Cliente");
-        dialog.setHeaderText("Introduce los datos del nuevo cliente");
+        dialog.setTitle("Nuevo Cliente"); dialog.setHeaderText("Datos del cliente");
+        ButtonType btnG = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnC = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnG, btnC);
 
-        ButtonType btnGuardar = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
-        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().addAll(btnGuardar, btnCancelar);
+        GridPane g = new GridPane(); g.setHgap(10); g.setVgap(10);
+        g.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
+        TextField tDni = new TextField(); tDni.setPromptText("Opcional");
+        TextField tNom = new TextField(); tNom.setPromptText("Nombre completo");
+        TextField tTel = new TextField(); tTel.setPromptText("Opcional");
+        TextField tDir = new TextField(); tDir.setPromptText("Opcional");
+        TextField tEmail = new TextField(); tEmail.setPromptText("Opcional");
+        g.add(new Label("DNI:"),       0,0); g.add(tDni,   1,0);
+        g.add(new Label("Nombre:*"),   0,1); g.add(tNom,   1,1);
+        g.add(new Label("Teléfono:"),  0,2); g.add(tTel,   1,2);
+        g.add(new Label("Dirección:"), 0,3); g.add(tDir,   1,3);
+        g.add(new Label("Email:"),     0,4); g.add(tEmail, 1,4);
+        dialog.getDialogPane().setContent(g);
 
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
+        Node boton = dialog.getDialogPane().lookupButton(btnG); boton.setDisable(true);
+        tNom.textProperty().addListener((o,ov,nv) -> boton.setDisable(nv.trim().isEmpty()));
+        javafx.application.Platform.runLater(tNom::requestFocus);
 
-        TextField txtDni = new TextField();
-        txtDni.setPromptText("Opcional");
-
-        TextField txtNombre = new TextField();
-        txtNombre.setPromptText("Nombre completo");
-
-        TextField txtTelefono = new TextField();
-        txtTelefono.setPromptText("Opcional");
-
-        TextField txtDireccion = new TextField();
-        txtDireccion.setPromptText("Opcional");
-
-        TextField txtEmail = new TextField();
-        txtEmail.setPromptText("Opcional");
-
-        grid.add(new Label("DNI/NIF:"), 0, 0);
-        grid.add(txtDni, 1, 0);
-        grid.add(new Label("Nombre:*"), 0, 1);
-        grid.add(txtNombre, 1, 1);
-        grid.add(new Label("Teléfono:"), 0, 2);
-        grid.add(txtTelefono, 1, 2);
-        grid.add(new Label("Dirección:"), 0, 3);
-        grid.add(txtDireccion, 1, 3);
-        grid.add(new Label("Email:"), 0, 4);
-        grid.add(txtEmail, 1, 4);
-
-        dialog.getDialogPane().setContent(grid);
-
-        // Deshabilitar botón de guardar inicialmente
-        Node botonGuardar = dialog.getDialogPane().lookupButton(btnGuardar);
-        botonGuardar.setDisable(true);
-
-        // VALIDACIÓN EN TIEMPO REAL - Solo el nombre es obligatorio
-        ChangeListener<String> validador = (obs, oldVal, newVal) -> {
-            String nombre = txtNombre.getText().trim();
-            boolean nombreValido = !nombre.isEmpty();
-            botonGuardar.setDisable(!nombreValido);
-        };
-        txtNombre.textProperty().addListener(validador);
-
-        javafx.application.Platform.runLater(() -> txtNombre.requestFocus());
-
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == btnGuardar) {
-                String dni = txtDni.getText().trim();
-                String nombre = txtNombre.getText().trim();
-
-                if (nombre.isEmpty()) {
-                    mostrarAlerta("Datos incompletos", "El nombre es obligatorio");
-                    return null;
+        dialog.setResultConverter(b -> {
+            if (b != btnG) return null;
+            try {
+                String dni = tDni.getText().trim();
+                if (!dni.isEmpty() && clienteService.buscarPorDni(dni) != null) {
+                    mostrarAlerta("DNI duplicado", "Ya existe un cliente con este DNI"); return null;
                 }
-
-                try {
-                    // Si se proporciona DNI, verificar si ya existe
-                    if (!dni.isEmpty()) {
-                        Cliente existente = clienteService.buscarPorDni(dni);
-                        if (existente != null) {
-                            mostrarAlerta("DNI duplicado", "Ya existe un cliente con este DNI");
-                            return null;
-                        }
-                    }
-
-                    Cliente nuevoCliente = clienteService.crearCliente(dni,nombre,
-                            txtTelefono.getText().trim(),
-                            txtDireccion.getText().trim(),
-                            txtEmail.getText().trim());
-
-                    System.out.println("✓ Cliente creado: " + nuevoCliente.getNombre());
-
-                    return nuevoCliente;
-
-                } catch (SQLException e) {
-                    mostrarError("Error al crear cliente", e.getMessage());
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-            return null;
+                return clienteService.crearCliente(dni, tNom.getText().trim(),
+                        tTel.getText().trim(), tDir.getText().trim(), tEmail.getText().trim());
+            } catch (SQLException e) { mostrarError("Error", e.getMessage()); return null; }
         });
+        dialog.showAndWait().ifPresent(c -> { ventaService.asignarCliente(c); actualizarLabelCliente(); });
+    }
 
-        Optional<Cliente> resultado = dialog.showAndWait();
-        if (resultado.isPresent()) {
-            ventaService.asignarCliente(resultado.get());
-            actualizarLabelCliente();
+    // ===== IMPRESIÓN =====
+    private void imprimirTicket(Factura factura) {
+        String[] impresoras = impresoraService.obtenerImpresorasDisponibles();
+        if (impresoras.length == 0) { mostrarError("Sin impresoras", "No se detectaron impresoras"); return; }
+        String imp = impresoras[0];
+        if (impresoras.length > 1) {
+            ChoiceDialog<String> d = new ChoiceDialog<>(impresoras[0], impresoras);
+            d.setTitle("Impresora"); d.setHeaderText("Selecciona impresora"); d.setContentText("Impresora:");
+            Optional<String> sel = d.showAndWait();
+            if (sel.isEmpty()) return;
+            imp = sel.get();
+        }
+        try {
+            impresoraService.imprimirTicket(factura, imp);
+            Alert ok = new Alert(Alert.AlertType.INFORMATION);
+            ok.setTitle("OK"); ok.setHeaderText("Ticket impreso"); ok.setContentText("Impresora: " + imp);
+            ok.showAndWait();
+        } catch (Exception e) { mostrarError("Error al imprimir", e.getMessage()); }
+    }
+
+    // ===== AUXILIARES =====
+    private void actualizarProductosEnBD(Factura factura) {
+        for (LineaFactura l : factura.getLineas()) {
+            try {
+                Producto p = productoService.buscarPorCodigo(l.getCodigoProducto());
+                if (p != null) {
+                    boolean cambios = false;
+                    if (!p.getNombre().equals(l.getNombreProducto()))           { p.setNombre(l.getNombreProducto()); cambios = true; }
+                    if (p.getPrecioBase().compareTo(l.getPrecioUnitario()) != 0) { p.setPrecioBase(l.getPrecioUnitario()); cambios = true; }
+                    if (cambios) productoService.actualizarProducto(p);
+                }
+            } catch (SQLException e) { System.err.println("⚠ Error producto: " + l.getCodigoProducto()); }
         }
     }
 
-    /**
-     * Actualiza el label que muestra el cliente actual
-     */
     private void actualizarLabelCliente() {
-        if (lblClienteActual != null) {
-            Cliente cliente = ventaService.getClienteActual();
-            if (cliente.esClientePorDefecto()) {
-                lblClienteActual.setText(cliente.getNombre());
-                lblClienteActual.setStyle("-fx-text-fill: #95a5a6;");
-            } else {
-                lblClienteActual.setText("Cliente: " + cliente.getNombre());
-                lblClienteActual.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
-            }
+        if (lblClienteActual == null) return;
+        Cliente c = ventaService.getClienteActual();
+        if (c.esClientePorDefecto()) {
+            lblClienteActual.setText(c.getNombre());
+            lblClienteActual.setStyle("-fx-text-fill: #95a5a6;");
+        } else {
+            lblClienteActual.setText("Cliente: " + c.getNombre());
+            lblClienteActual.setStyle("-fx-text-fill: #27ae60; -fx-font-weight: bold;");
         }
     }
 
-    /**
-     * Actualiza el cliente en la BD si se modificaron sus datos durante la venta
-     */
     private void actualizarClienteEnBD() {
         try {
-            Cliente clienteActual = ventaService.getClienteActual();
-
-            // Solo actualizar si no es cliente por defecto y ya tiene ID (ya existe en BD)
-            if (!clienteActual.esClientePorDefecto() && clienteActual.getId() != null) {
-                Cliente clienteBD = clienteService.buscarPorId(clienteActual.getId());
-
-                if (clienteBD != null) {
-                    // Usamos java.util.Objects para comparar de forma segura contra nulls
-                    boolean cambios = !java.util.Objects.equals(clienteBD.getNombre(), clienteActual.getNombre()) ||
-                            !java.util.Objects.equals(clienteBD.getTelefono(), clienteActual.getTelefono()) ||
-                            !java.util.Objects.equals(clienteBD.getDireccion(), clienteActual.getDireccion()) ||
-                            !java.util.Objects.equals(clienteBD.getEmail(), clienteActual.getEmail());
-
-                    if (cambios) {
-                        clienteService.actualizarCliente(clienteActual);
-                        System.out.println("✓ Cliente actualizado en BD por cambios detectados");
-                    }
+            Cliente ca = ventaService.getClienteActual();
+            if (!ca.esClientePorDefecto() && ca.getId() != null) {
+                Cliente bd = clienteService.buscarPorId(ca.getId());
+                if (bd != null) {
+                    boolean ch = !java.util.Objects.equals(bd.getNombre(),    ca.getNombre())
+                            || !java.util.Objects.equals(bd.getTelefono(),  ca.getTelefono())
+                            || !java.util.Objects.equals(bd.getDireccion(), ca.getDireccion())
+                            || !java.util.Objects.equals(bd.getEmail(),     ca.getEmail());
+                    if (ch) clienteService.actualizarCliente(ca);
                 }
             }
-        } catch (SQLException e) {
-            System.err.println("⚠ Error al actualizar cliente: " + e.getMessage());
-            e.printStackTrace();
-        }
+        } catch (SQLException e) { System.err.println("⚠ Error cliente BD: " + e.getMessage()); }
     }
 
     private void actualizarVista() {
-        Factura factura = ventaService.finalizarVenta();
-
+        Factura f = ventaService.finalizarVenta();
         lineasObservables.clear();
-        lineasObservables.addAll(factura.getLineas());
-
-        actualizarTotales(factura);
-
-        // Actualizar contador de artículos
-        int totalArticulos = factura.getLineas().stream()
-                .mapToInt(LineaFactura::getCantidad)
-                .sum();
-
-        if (lblCantidadArticulos != null) {
-            lblCantidadArticulos.setText(totalArticulos + " artículo" + (totalArticulos != 1 ? "s" : ""));
-        }
-
+        lineasObservables.addAll(f.getLineas());
+        actualizarTotales(f);
+        int total = f.getLineas().stream().mapToInt(LineaFactura::getCantidad).sum();
+        if (lblCantidadArticulos != null)
+            lblCantidadArticulos.setText(total + " artículo" + (total != 1 ? "s" : ""));
         tablaTicket.refresh();
+        // Recalcular cambio al actualizar totales (por si cambió el total)
+        recalcularCambio();
     }
 
-    private void actualizarTotales(Factura factura) {
-        lblTotalSinIva.setText(String.format("%.2f€", factura.getTotalSinIva()));
-        lblIva.setText(String.format("%.2f€", factura.getTotalIva()));
-        lblTotal.setText(String.format("%.2f€", factura.getTotalConIva()));
+    private void actualizarTotales(Factura f) {
+        lblTotalSinIva.setText(String.format("%.2f€", f.getTotalSinIva()));
+        lblIva.setText(String.format("%.2f€", f.getTotalIva()));
+        lblTotal.setText(String.format("%.2f€", f.getTotalConIva()));
     }
 
-    private void mostrarAlerta(String titulo, String mensaje) {
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle(titulo);
-        alert.setHeaderText(null);
-        alert.setContentText(mensaje);
-        alert.showAndWait();
+    private void mostrarAlerta(String t, String m) {
+        Alert a = new Alert(Alert.AlertType.WARNING); a.setTitle(t); a.setHeaderText(null); a.setContentText(m); a.showAndWait();
     }
-
-    private void mostrarError(String titulo, String mensaje) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(titulo);
-        alert.setHeaderText(null);
-        alert.setContentText(mensaje);
-        alert.showAndWait();
+    private void mostrarError(String t, String m) {
+        Alert a = new Alert(Alert.AlertType.ERROR); a.setTitle(t); a.setHeaderText(null); a.setContentText(m); a.showAndWait();
     }
-
-    /**
-     * Configura los atajos de teclado para acciones rápidas
-     */
-    private void configurarAtajosTeclado() {
-        // Este método se puede implementar más adelante si quieres añadir
-        // atajos de teclado como F1, F2, etc.
-    }
+    private void configurarAtajosTeclado() { /* F1/F2 pendiente */ }
 }
