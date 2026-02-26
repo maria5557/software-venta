@@ -108,14 +108,29 @@ public class ImpresoraService {
 
             try {
                 // ===== ENCABEZADO =====
+
+                // Nombre de la tienda → GRANDE
                 g2d.setFont(fontTitle);
-                y = drawText(g2d, config.getNombreTienda(), x, y, width, "left");
+                y = drawText(g2d, config.getNombreTienda(), x, y, width, "center");
+
+                // Ciudad
                 g2d.setFont(fontSmall);
-                y = drawText(g2d, config.getDireccion(), x, y, width, "left");
-                y = drawText(g2d, config.getCodigoPostal() + " " + config.getCiudad(), x, y, width, "left");
-                y = drawText(g2d, "Tel: " + config.getTelefono(), x, y, width, "left");
-                if (config.getNif() != null && !config.getNif().isEmpty())
-                    y = drawText(g2d, "NIF/CIF: " + config.getNif(), x, y, width, "left");
+                y = drawText(g2d, config.getCiudad(), x, y, width, "center");
+
+                // Dirección
+                y = drawText(g2d, config.getDireccion(), x, y, width, "center");
+
+                // Código postal + provincia
+                y = drawText(g2d, config.getCodigoPostal() + " Jaén", x, y, width, "center");
+
+                // NIF/CIF (si existe)
+                if (config.getNif() != null && !config.getNif().isEmpty()) {
+                    y = drawText(g2d, "NIF/CIF: " + config.getNif(), x, y, width, "center");
+                }
+
+                // Teléfono
+                y = drawText(g2d, "Tel: " + config.getTelefono(), x, y, width, "center");
+
 
                 y += 4;
                 y = drawLine(g2d, "=", x, y, width, MAX_CHARS_PER_LINE);

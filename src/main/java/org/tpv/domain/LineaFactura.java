@@ -78,19 +78,19 @@ public class LineaFactura {
     }
 
     /**
-     * Calcula el importe del IVA sobre el subtotal sin IVA
+     * IVA = totalConIva - subtotalSinIva (derivado, no calculado independientemente)
      */
     public BigDecimal getImporteIva() {
-        return getSubtotalSinIva()
-                .multiply(BigDecimal.valueOf(ivaAplicado))
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        return getTotalConIva().subtract(getSubtotalSinIva());
     }
 
     /**
-     * Calcula el total con IVA (subtotal sin IVA + importe IVA)
+     * Total con IVA = precio con IVA (ya descontado) × cantidad.
+     * Es la fuente de verdad: evita acumulación de errores de redondeo.
      */
     public BigDecimal getTotalConIva() {
-        return getSubtotalSinIva().add(getImporteIva())
+        return getPrecioConDescuento()
+                .multiply(BigDecimal.valueOf(cantidad))
                 .setScale(2, RoundingMode.HALF_UP);
     }
 

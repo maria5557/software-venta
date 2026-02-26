@@ -10,7 +10,10 @@ import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.TextFieldTableCell;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.util.converter.BigDecimalStringConverter;
 import javafx.util.converter.IntegerStringConverter;
@@ -354,17 +357,21 @@ public class VentaController {
         if (metodoPago.equals("EFECTIVO")) {
             BigDecimal entregado = getEntregadoCliente();
             BigDecimal total     = ventaService.finalizarVenta().getTotalConIva();
+            /*
             if (entregado.compareTo(BigDecimal.ZERO) <= 0) {
                 mostrarAlerta("Importe no introducido", "Introduce el importe que entrega el cliente");
                 txtEntregado.requestFocus();
                 return;
             }
+
             if (entregado.compareTo(total) < 0) {
                 mostrarAlerta("Importe insuficiente",
                         String.format("El cliente entrega %.2f€ pero el total es %.2f€", entregado, total));
                 txtEntregado.requestFocus();
                 return;
             }
+
+             */
         }
 
         // Registrar método de pago e importe entregado en la factura
@@ -383,7 +390,7 @@ public class VentaController {
             return;
         }
 
-        actualizarProductosEnBD(factura);
+        //actualizarProductosEnBD(factura);
         actualizarClienteEnBD();
 
         // Diálogo de confirmación
@@ -447,63 +454,244 @@ public class VentaController {
     // ===== DIÁLOGOS PRODUCTO =====
     private Producto mostrarDialogoCrearProducto(String codigo) throws SQLException {
         Dialog<Producto> dialog = new Dialog<>();
-        dialog.setTitle("Producto no encontrado");
-        dialog.setHeaderText("'" + codigo + "' no existe. ¿Crear producto?");
-        ButtonType btnCrear = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
-        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.setTitle("Nuevo Producto");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().setPrefWidth(520);
+        dialog.getDialogPane().setMinWidth(480);
+
+        ButtonType btnCrear   = new ButtonType("✔  Crear producto", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancelar = new ButtonType("Cancelar",          ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(btnCrear, btnCancelar);
 
-        GridPane g = new GridPane(); g.setHgap(10); g.setVgap(10);
-        g.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
-        TextField txtNombre = new TextField(); txtNombre.setPromptText("Nombre");
-        TextField txtPrecio = new TextField("0.00"); txtPrecio.setPromptText("Precio con IVA");
-        g.add(new Label("Código:"), 0, 0); g.add(new Label(codigo), 1, 0);
-        g.add(new Label("Nombre:"), 0, 1); g.add(txtNombre, 1, 1);
-        g.add(new Label("Precio:"), 0, 2); g.add(txtPrecio, 1, 2);
-        dialog.getDialogPane().setContent(g);
+        // ── Estilos reutilizables ──────────────────────────────────────────────
+        String estiloLabel = "-fx-font-size: 11px; -fx-font-weight: bold; "
+                + "-fx-text-fill: #6c757d; -fx-padding: 0 0 3 2;";
+        String estiloInput = "-fx-font-size: 15px; -fx-padding: 10 12; "
+                + "-fx-background-color: white; -fx-border-color: #ced4da; "
+                + "-fx-border-radius: 6; -fx-background-radius: 6; "
+                + "-fx-pref-height: 42px;";
+        String estiloInputFoco = estiloInput + "-fx-border-color: #3498db; "
+                + "-fx-effect: dropshadow(gaussian, rgba(52,152,219,0.25), 6, 0, 0, 0);";
 
-        Node btn = dialog.getDialogPane().lookupButton(btnCrear); btn.setDisable(true);
-        ChangeListener<String> v = (o, ov, nv) -> {
-            try { btn.setDisable(txtNombre.getText().trim().isEmpty()
-                    || new BigDecimal(txtPrecio.getText().trim().replace(",", ".")).compareTo(BigDecimal.ZERO) <= 0); }
-            catch (Exception ex) { btn.setDisable(true); }
+        // ── Cabecera personalizada ─────────────────────────────────────────────
+        VBox cabecera = new VBox(4);
+        cabecera.setStyle("-fx-background-color: #2c3e50; -fx-padding: 20 24 18 24;");
+        Label lblTitulo   = new Label("Nuevo Producto");
+        lblTitulo.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: white;");
+        Label lblSubtitulo = new Label("Código: " + codigo);
+        lblSubtitulo.setStyle("-fx-font-size: 12px; -fx-text-fill: #95a5a6;");
+        cabecera.getChildren().addAll(lblTitulo, lblSubtitulo);
+
+        // ── Campos ────────────────────────────────────────────────────────────
+        TextField txtNombre = new TextField();
+        txtNombre.setPromptText("Ej: Café con leche, Barra de pan...");
+        txtNombre.setStyle(estiloInput);
+        txtNombre.setMaxWidth(Double.MAX_VALUE);
+        txtNombre.focusedProperty().addListener((o, ov, nv) ->
+                txtNombre.setStyle(nv ? estiloInputFoco : estiloInput));
+
+        TextField txtPrecio = new TextField();
+        txtPrecio.setPromptText("0.00");
+        txtPrecio.setStyle(estiloInput);
+        txtPrecio.setMaxWidth(Double.MAX_VALUE);
+        txtPrecio.focusedProperty().addListener((o, ov, nv) ->
+                txtPrecio.setStyle(nv ? estiloInputFoco : estiloInput));
+
+        // ── Layout ────────────────────────────────────────────────────────────
+        VBox cuerpo = new VBox(16);
+        cuerpo.setStyle("-fx-padding: 24 24 8 24; -fx-background-color: #f8f9fa;");
+
+        VBox grupoNombre = new VBox(4,
+                new Label("NOMBRE DEL PRODUCTO") {{ setStyle(estiloLabel); }},
+                txtNombre
+        );
+
+        HBox filaPrecio = new HBox(0);
+        Label euroSufijo = new Label("€");
+        euroSufijo.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #495057; "
+                + "-fx-padding: 10 12; -fx-background-color: #e9ecef; "
+                + "-fx-border-color: #ced4da; -fx-border-radius: 0 6 6 0; "
+                + "-fx-background-radius: 0 6 6 0; -fx-pref-height: 42px;");
+        txtPrecio.setStyle(estiloInput + "-fx-border-radius: 6 0 0 6; -fx-background-radius: 6 0 0 6;");
+        HBox.setHgrow(txtPrecio, javafx.scene.layout.Priority.ALWAYS);
+        filaPrecio.getChildren().addAll(txtPrecio, euroSufijo);
+
+        VBox grupoPrecio = new VBox(4,
+                new Label("PRECIO CON IVA INCLUIDO") {{ setStyle(estiloLabel); }},
+                filaPrecio
+        );
+
+        Label lblAviso = new Label("ℹ El precio introducido debe incluir el IVA");
+        lblAviso.setStyle("-fx-font-size: 11px; -fx-text-fill: #7f8c8d; -fx-font-style: italic;");
+
+        cuerpo.getChildren().addAll(grupoNombre, grupoPrecio, lblAviso);
+
+        VBox contenedor = new VBox(cabecera, cuerpo);
+        dialog.getDialogPane().setContent(contenedor);
+        dialog.getDialogPane().setStyle("-fx-padding: 0; -fx-background-color: #f8f9fa;");
+
+        // ── Botón Crear desactivado hasta validar ─────────────────────────────
+        Node btnCrearNode = dialog.getDialogPane().lookupButton(btnCrear);
+        btnCrearNode.setDisable(true);
+        btnCrearNode.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; "
+                + "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; "
+                + "-fx-background-radius: 5; -fx-cursor: hand;");
+
+        ChangeListener<String> validar = (o, ov, nv) -> {
+            try {
+                btnCrearNode.setDisable(
+                        txtNombre.getText().trim().isEmpty()
+                                || new BigDecimal(txtPrecio.getText().trim().replace(",", "."))
+                                .compareTo(BigDecimal.ZERO) <= 0
+                );
+            } catch (Exception ex) { btnCrearNode.setDisable(true); }
         };
-        txtNombre.textProperty().addListener(v); txtPrecio.textProperty().addListener(v);
+        txtNombre.textProperty().addListener(validar);
+        txtPrecio.textProperty().addListener(validar);
         javafx.application.Platform.runLater(txtNombre::requestFocus);
 
         dialog.setResultConverter(b -> {
             if (b != btnCrear) return null;
-            try { return productoService.crearProducto(codigo, txtNombre.getText().trim(),
-                    new BigDecimal(txtPrecio.getText().trim().replace(",", "."))); }
-            catch (SQLException e) { mostrarError("Error", e.getMessage()); return null; }
+            try {
+                return productoService.crearProducto(
+                        codigo,
+                        txtNombre.getText().trim(),
+                        new BigDecimal(txtPrecio.getText().trim().replace(",", "."))
+                );
+            } catch (SQLException e) { mostrarError("Error", e.getMessage()); return null; }
         });
         return dialog.showAndWait().orElse(null);
     }
 
+
     private Producto mostrarDialogoCrearProductoSinCodigo() throws SQLException {
         Dialog<Producto> dialog = new Dialog<>();
-        dialog.setTitle("Crear producto"); dialog.setHeaderText("Introduce los datos del producto");
-        ButtonType btnCrear = new ButtonType("Crear", ButtonBar.ButtonData.OK_DONE);
-        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.setTitle("Nuevo Producto");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().setPrefWidth(520);
+        dialog.getDialogPane().setMinWidth(480);
+
+        ButtonType btnCrear    = new ButtonType("✔  Crear producto", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancelar = new ButtonType("Cancelar",           ButtonBar.ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().addAll(btnCrear, btnCancelar);
 
-        GridPane g = new GridPane(); g.setHgap(10); g.setVgap(10);
-        g.setPadding(new javafx.geometry.Insets(20, 150, 10, 10));
-        TextField txtCodigo = new TextField(); txtCodigo.setPromptText("Opcional");
-        TextField txtNombre = new TextField(); txtNombre.setPromptText("Nombre");
-        TextField txtPrecio = new TextField("0.00");
-        g.add(new Label("Código:"),  0, 0); g.add(txtCodigo, 1, 0);
-        g.add(new Label("Nombre:*"), 0, 1); g.add(txtNombre, 1, 1);
-        g.add(new Label("Precio:*"), 0, 2); g.add(txtPrecio, 1, 2);
-        dialog.getDialogPane().setContent(g);
+        String estiloLabel = "-fx-font-size: 11px; -fx-font-weight: bold; "
+                + "-fx-text-fill: #6c757d; -fx-padding: 0 0 3 2;";
+        String estiloInput = "-fx-font-size: 15px; -fx-padding: 10 12; "
+                + "-fx-background-color: white; -fx-border-color: #ced4da; "
+                + "-fx-border-radius: 6; -fx-background-radius: 6; "
+                + "-fx-pref-height: 42px;";
+        String estiloInputFoco = estiloInput + "-fx-border-color: #3498db; "
+                + "-fx-effect: dropshadow(gaussian, rgba(52,152,219,0.25), 6, 0, 0, 0);";
+        String estiloInputOpc  = "-fx-font-size: 15px; -fx-padding: 10 12; "
+                + "-fx-background-color: white; -fx-border-color: #e9ecef; "
+                + "-fx-border-radius: 6; -fx-background-radius: 6; "
+                + "-fx-pref-height: 42px;";
 
-        Node btn = dialog.getDialogPane().lookupButton(btnCrear); btn.setDisable(true);
-        ChangeListener<String> v = (o, ov, nv) -> {
-            try { btn.setDisable(txtNombre.getText().trim().isEmpty()
-                    || new BigDecimal(txtPrecio.getText().trim().replace(",", ".")).compareTo(BigDecimal.ZERO) <= 0); }
-            catch (Exception ex) { btn.setDisable(true); }
+        // ── Cabecera ──────────────────────────────────────────────────────────
+        VBox cabecera = new VBox(4);
+        cabecera.setStyle("-fx-background-color: #2c3e50; -fx-padding: 20 24 18 24;");
+        Label lblTitulo    = new Label("Nuevo Producto");
+        lblTitulo.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: white;");
+        Label lblSubtitulo = new Label("Rellena los datos del producto a añadir");
+        lblSubtitulo.setStyle("-fx-font-size: 12px; -fx-text-fill: #95a5a6;");
+        cabecera.getChildren().addAll(lblTitulo, lblSubtitulo);
+
+        // ── Campos ────────────────────────────────────────────────────────────
+        TextField txtCodigo = new TextField();
+        txtCodigo.setPromptText("Se generará automáticamente si se deja vacío");
+        txtCodigo.setStyle(estiloInputOpc);
+        txtCodigo.setMaxWidth(Double.MAX_VALUE);
+        txtCodigo.focusedProperty().addListener((o, ov, nv) ->
+                txtCodigo.setStyle(nv ? estiloInputFoco : estiloInputOpc));
+
+        TextField txtNombre = new TextField();
+        txtNombre.setPromptText("Ej: Café con leche, Barra de pan...");
+        txtNombre.setStyle(estiloInput);
+        txtNombre.setMaxWidth(Double.MAX_VALUE);
+        txtNombre.focusedProperty().addListener((o, ov, nv) ->
+                txtNombre.setStyle(nv ? estiloInputFoco : estiloInput));
+
+        TextField txtPrecio = new TextField();
+        txtPrecio.setPromptText("0.00");
+        txtPrecio.setStyle(estiloInput);
+        txtPrecio.setMaxWidth(Double.MAX_VALUE);
+        txtPrecio.focusedProperty().addListener((o, ov, nv) ->
+                txtPrecio.setStyle(nv ? estiloInputFoco : estiloInput));
+
+        // ── Layout ────────────────────────────────────────────────────────────
+        VBox cuerpo = new VBox(16);
+        cuerpo.setStyle("-fx-padding: 24 24 8 24; -fx-background-color: #f8f9fa;");
+
+        Label lblOpcional = new Label("OPCIONAL");
+        lblOpcional.setStyle("-fx-font-size: 9px; -fx-font-weight: bold; -fx-text-fill: white; "
+                + "-fx-background-color: #95a5a6; -fx-background-radius: 3; -fx-padding: 1 5;");
+        HBox headerCodigo = new HBox(8,
+                new Label("CÓDIGO DE BARRAS") {{ setStyle(estiloLabel); }},
+                lblOpcional
+        );
+        headerCodigo.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        VBox grupoCodigo = new VBox(4, headerCodigo, txtCodigo);
+
+        Label asterisco1 = new Label("*");
+        asterisco1.setStyle("-fx-text-fill: #e74c3c; -fx-font-size: 13px;");
+        HBox headerNombre = new HBox(3,
+                new Label("NOMBRE DEL PRODUCTO") {{ setStyle(estiloLabel); }},
+                asterisco1
+        );
+        headerNombre.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        VBox grupoNombre = new VBox(4, headerNombre, txtNombre);
+
+        HBox filaPrecio = new HBox(0);
+        Label euroSufijo = new Label("€");
+        euroSufijo.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #495057; "
+                + "-fx-padding: 10 12; -fx-background-color: #e9ecef; "
+                + "-fx-border-color: #ced4da; -fx-border-radius: 0 6 6 0; "
+                + "-fx-background-radius: 0 6 6 0; -fx-pref-height: 42px;");
+        txtPrecio.setStyle(estiloInput + "-fx-border-radius: 6 0 0 6; -fx-background-radius: 6 0 0 6;");
+        HBox.setHgrow(txtPrecio, javafx.scene.layout.Priority.ALWAYS);
+        filaPrecio.getChildren().addAll(txtPrecio, euroSufijo);
+
+        Label asterisco2 = new Label("*");
+        asterisco2.setStyle("-fx-text-fill: #e74c3c; -fx-font-size: 13px;");
+        HBox headerPrecio = new HBox(3,
+                new Label("PRECIO CON IVA INCLUIDO") {{ setStyle(estiloLabel); }},
+                asterisco2
+        );
+        headerPrecio.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        VBox grupoPrecio = new VBox(4, headerPrecio, filaPrecio);
+
+        Separator sep = new Separator();
+        sep.setStyle("-fx-padding: 4 0;");
+
+        Label lblAviso = new Label("* Campos obligatorios  ·  ℹ El precio debe incluir el IVA");
+        lblAviso.setStyle("-fx-font-size: 11px; -fx-text-fill: #7f8c8d; -fx-font-style: italic;");
+
+        cuerpo.getChildren().addAll(grupoCodigo, grupoNombre, grupoPrecio, sep, lblAviso);
+
+        VBox contenedor = new VBox(cabecera, cuerpo);
+        dialog.getDialogPane().setContent(contenedor);
+        dialog.getDialogPane().setStyle("-fx-padding: 0; -fx-background-color: #f8f9fa;");
+
+        // ── Validación ────────────────────────────────────────────────────────
+        Node btnCrearNode = dialog.getDialogPane().lookupButton(btnCrear);
+        btnCrearNode.setDisable(true);
+        btnCrearNode.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; "
+                + "-fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 8 20; "
+                + "-fx-background-radius: 5; -fx-cursor: hand;");
+
+        ChangeListener<String> validar = (o, ov, nv) -> {
+            try {
+                btnCrearNode.setDisable(
+                        txtNombre.getText().trim().isEmpty()
+                                || new BigDecimal(txtPrecio.getText().trim().replace(",", "."))
+                                .compareTo(BigDecimal.ZERO) <= 0
+                );
+            } catch (Exception ex) { btnCrearNode.setDisable(true); }
         };
-        txtNombre.textProperty().addListener(v); txtPrecio.textProperty().addListener(v);
+        txtNombre.textProperty().addListener(validar);
+        txtPrecio.textProperty().addListener(validar);
         javafx.application.Platform.runLater(txtNombre::requestFocus);
 
         dialog.setResultConverter(b -> {
@@ -511,8 +699,11 @@ public class VentaController {
             try {
                 String cod = txtCodigo.getText().trim();
                 if (cod.isEmpty()) cod = "PROD-" + System.currentTimeMillis();
-                return productoService.crearProducto(cod, txtNombre.getText().trim(),
-                        new BigDecimal(txtPrecio.getText().trim().replace(",", ".")));
+                return productoService.crearProducto(
+                        cod,
+                        txtNombre.getText().trim(),
+                        new BigDecimal(txtPrecio.getText().trim().replace(",", "."))
+                );
             } catch (SQLException e) { mostrarError("Error", e.getMessage()); return null; }
         });
         return dialog.showAndWait().orElse(null);
@@ -695,5 +886,21 @@ public class VentaController {
     private void mostrarError(String t, String m) {
         Alert a = new Alert(Alert.AlertType.ERROR); a.setTitle(t); a.setHeaderText(null); a.setContentText(m); a.showAndWait();
     }
-    private void configurarAtajosTeclado() { /* F1/F2 pendiente */ }
+    // ===== ATAJOS DE TECLADO =====
+    private void configurarAtajosTeclado() {
+        // Usamos un filtro de eventos en el contenedor principal (txtCodigoBarra es un buen punto de partida o la propia escena)
+        txtCodigoBarra.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                newScene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+                    if (event.getCode() == KeyCode.F1) {
+                        onCobrar();
+                        event.consume();
+                    } else if (event.getCode() == KeyCode.F2) {
+                        onNuevaVenta();
+                        event.consume();
+                    }
+                });
+            }
+        });
+    }
 }
