@@ -19,7 +19,6 @@ public class Factura {
     // Información del cliente
     private Long clienteId;
     private String clienteNombre;
-    private String clienteDni;
 
     // Información del empleado
     private Long empleadoId;
@@ -30,6 +29,10 @@ public class Factura {
     private BigDecimal totalSinIva = BigDecimal.ZERO;
     private BigDecimal totalIva = BigDecimal.ZERO;
     private BigDecimal totalConIva = BigDecimal.ZERO;
+    private String metodoPago;
+    private BigDecimal entregadoCliente;
+
+
 
     public void añadirLinea(LineaFactura linea) {
         lineas.add(linea);

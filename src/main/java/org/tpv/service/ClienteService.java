@@ -50,20 +50,9 @@ public class ClienteService {
             throw new IllegalArgumentException("El nombre es obligatorio");
         }
 
-        // Si no hay DNI, generar uno automático
-        if (dni == null || dni.trim().isEmpty()) {
-            dni = "CLI-" + System.currentTimeMillis();
-        } else {
-            // Verificar que no exista ya
-            Cliente existente = clienteRepository.findByDni(dni.trim());
-            if (existente != null) {
-                throw new IllegalStateException("Ya existe un cliente con el DNI: " + dni);
-            }
-        }
-
         Cliente cliente = new Cliente(
                 null,
-                dni.trim(),
+                dni!= null ? telefono.trim() : "",
                 nombre.trim(),
                 telefono != null ? telefono.trim() : "",
                 direccion != null ? direccion.trim() : "",
@@ -90,31 +79,30 @@ public class ClienteService {
     /**
      * Elimina un cliente por DNI
      */
-    public void eliminarCliente(String dni) throws SQLException {
-        if (dni == null || dni.trim().isEmpty()) {
-            throw new IllegalArgumentException("El DNI no puede estar vacío");
+    public void eliminarCliente(Long id) throws SQLException {
+        if (id == null) {
+            throw new IllegalArgumentException("El ID no puede estar vacío");
         }
-        clienteRepository.delete(dni.trim());
+        clienteRepository.delete(id);
     }
 
     /**
      * Busca clientes por DNI o nombre
      */
-    public List<Cliente> buscar(String busqueda) throws SQLException {
-        if (busqueda == null || busqueda.trim().isEmpty()) {
-            return obtenerTodos();
-        }
-
-        List<Cliente> resultados = buscarPorNombre(busqueda);
-
-        // Si no hay resultados por nombre, intentar por DNI
-        if (resultados.isEmpty()) {
-            Cliente porDni = buscarPorDni(busqueda);
-            if (porDni != null) {
-                resultados.add(porDni);
-            }
-        }
-
-        return resultados;
+    public List<Cliente> buscarPorNombreODni(String busqueda) throws SQLException {
+        return clienteRepository.findByNombreOrDni(busqueda);
     }
+
+    public Cliente buscarPorId(Long id) throws SQLException {
+        return clienteRepository.findById(id);
+    }
+
+    public Cliente obtenerClientePorDefecto() {
+        try {
+            return clienteRepository.findById(1L);
+        } catch (SQLException e) {
+            throw new RuntimeException("Error al obtener el cliente por defecto (ID=1)", e);
+        }
+    }
+
 }

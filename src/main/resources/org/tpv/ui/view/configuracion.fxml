@@ -1,99 +1,95 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.geometry.Insets?>
-<?import javafx.scene.control.*?>
-<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
 
-<VBox spacing="15" style="-fx-padding: 20; -fx-background-color: #f5f5f5;"
-      xmlns="http://javafx.com/javafx/21"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="org.tpv.ui.controller.ConfiguracionController">
+<VBox spacing="15" style="-fx-padding: 20; -fx-background-color: #f5f5f5;" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.tpv.ui.controller.ConfiguracionController">
 
     <!-- CABECERA -->
-    <HBox alignment="CENTER_LEFT" spacing="15"
-          style="-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);">
-        <Label text="⚙️ Configuración del Sistema" style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;" />
+    <HBox alignment="CENTER_LEFT" spacing="15" style="-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);">
+        <Label style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;" text="Configuración del Sistema" />
     </HBox>
 
     <!-- FORMULARIO DE CONFIGURACIÓN -->
     <VBox spacing="20" style="-fx-background-color: white; -fx-padding: 30; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);">
 
-        <Label text="DATOS DE LA TIENDA" style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #34495e;" />
+        <Label style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #34495e;" text="DATOS DE LA TIENDA" />
 
         <GridPane hgap="20" vgap="15">
             <columnConstraints>
                 <ColumnConstraints minWidth="150" />
-                <ColumnConstraints minWidth="300" hgrow="ALWAYS" />
+                <ColumnConstraints hgrow="ALWAYS" minWidth="300" />
             </columnConstraints>
 
-            <Label text="Nombre de la tienda:" GridPane.columnIndex="0" GridPane.rowIndex="0"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtNombreTienda" GridPane.columnIndex="1" GridPane.rowIndex="0"
-                       promptText="Nombre del negocio" />
+            <Label style="-fx-font-weight: bold;" text="Nombre de la tienda:" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+            <TextField fx:id="txtNombreTienda" promptText="Nombre del negocio" GridPane.columnIndex="1" GridPane.rowIndex="0" />
 
-            <Label text="Dirección:" GridPane.columnIndex="0" GridPane.rowIndex="1"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtDireccion" GridPane.columnIndex="1" GridPane.rowIndex="1"
-                       promptText="Calle y número" />
+            <Label style="-fx-font-weight: bold;" text="Dirección:" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+            <TextField fx:id="txtDireccion" promptText="Calle y número" GridPane.columnIndex="1" GridPane.rowIndex="1" />
 
-            <Label text="Ciudad:" GridPane.columnIndex="0" GridPane.rowIndex="2"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtCiudad" GridPane.columnIndex="1" GridPane.rowIndex="2"
-                       promptText="Ciudad" />
+            <Label style="-fx-font-weight: bold;" text="Empleado" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+            <TextField fx:id="txtEmpleado" promptText="Nombre del empleado" GridPane.columnIndex="1" GridPane.rowIndex="2" />
 
-            <Label text="Código Postal:" GridPane.columnIndex="0" GridPane.rowIndex="3"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtCodigoPostal" GridPane.columnIndex="1" GridPane.rowIndex="3"
-                       promptText="CP" />
+            <Label style="-fx-font-weight: bold;" text="Código Postal:" GridPane.columnIndex="0" GridPane.rowIndex="3" />
+            <TextField fx:id="txtCodigoPostal" promptText="CP" GridPane.columnIndex="1" GridPane.rowIndex="3" />
 
-            <Label text="Teléfono:" GridPane.columnIndex="0" GridPane.rowIndex="4"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtTelefono" GridPane.columnIndex="1" GridPane.rowIndex="4"
-                       promptText="Teléfono de contacto" />
+            <Label style="-fx-font-weight: bold;" text="Teléfono:" GridPane.columnIndex="0" GridPane.rowIndex="4" />
+            <TextField fx:id="txtTelefono" promptText="Teléfono de contacto" GridPane.columnIndex="1" GridPane.rowIndex="4" />
 
-            <Label text="CIF:" GridPane.columnIndex="0" GridPane.rowIndex="5"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtCif" GridPane.columnIndex="1" GridPane.rowIndex="5"
-                       promptText="CIF de la empresa" />
+            <Label style="-fx-font-weight: bold;" text="CIF:" GridPane.columnIndex="0" GridPane.rowIndex="5" />
+            <TextField fx:id="txtCif" promptText="CIF de la empresa" GridPane.columnIndex="1" GridPane.rowIndex="5" />
 
-            <Label text="NIF:" GridPane.columnIndex="0" GridPane.rowIndex="6"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtNif" GridPane.columnIndex="1" GridPane.rowIndex="6"
-                       promptText="NIF del titular" />
+            <Label style="-fx-font-weight: bold;" text="NIF:" GridPane.columnIndex="0" GridPane.rowIndex="6" />
+            <TextField fx:id="txtNif" promptText="NIF del titular" GridPane.columnIndex="1" GridPane.rowIndex="6" />
 
-            <Label text="Email:" GridPane.columnIndex="0" GridPane.rowIndex="7"
-                   style="-fx-font-weight: bold;" />
-            <TextField fx:id="txtEmail" GridPane.columnIndex="1" GridPane.rowIndex="7"
-                       promptText="Email de contacto" />
+            <Label style="-fx-font-weight: bold;" text="Email:" GridPane.columnIndex="0" GridPane.rowIndex="7" />
+            <TextField fx:id="txtEmail" promptText="Email de contacto" GridPane.columnIndex="1" GridPane.rowIndex="7" />
+         <rowConstraints>
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+            <RowConstraints />
+         </rowConstraints>
         </GridPane>
 
         <Separator />
 
-        <Label text="PARÁMETROS FISCALES" style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #34495e;" />
+        <Label style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #34495e;" text="PARÁMETROS FISCALES" />
 
         <GridPane hgap="20" vgap="15">
             <columnConstraints>
                 <ColumnConstraints minWidth="150" />
-                <ColumnConstraints minWidth="300" hgrow="ALWAYS" />
+                <ColumnConstraints hgrow="ALWAYS" minWidth="300" />
             </columnConstraints>
 
-            <Label text="IVA General (%):" GridPane.columnIndex="0" GridPane.rowIndex="0"
-                   style="-fx-font-weight: bold;" />
+            <Label style="-fx-font-weight: bold;" text="IVA General (%):" GridPane.columnIndex="0" GridPane.rowIndex="0" />
             <HBox spacing="10" GridPane.columnIndex="1" GridPane.rowIndex="0">
-                <Spinner fx:id="spinnerIva" min="0" max="100" initialValue="21"
-                         editable="true" prefWidth="100" />
+                <Spinner fx:id="spinnerIva" editable="true" initialValue="21" max="100" min="0" prefWidth="100" />
 
             </HBox>
+         <rowConstraints>
+            <RowConstraints />
+         </rowConstraints>
         </GridPane>
 
         <Separator />
 
         <!-- BOTONES -->
-        <HBox spacing="15" alignment="CENTER_RIGHT">
-            <Button fx:id="btnGuardar" text="💾 Guardar Cambios" onAction="#guardarConfiguracion"
-                    style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12 30; -fx-background-radius: 5; -fx-cursor: hand;" />
-            <Button fx:id="btnCancelar" text="✖ Cancelar" onAction="#cancelar"
-                    style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12 30; -fx-background-radius: 5; -fx-cursor: hand;" />
+        <HBox alignment="CENTER_RIGHT" spacing="15">
+            <Button fx:id="btnGuardar" onAction="#guardarConfiguracion" style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12 30; -fx-background-radius: 5; -fx-cursor: hand;" text="💾 Guardar Cambios" />
+            <Button fx:id="btnCancelar" onAction="#cancelar" style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12 30; -fx-background-radius: 5; -fx-cursor: hand;" text="✖ Cancelar" />
         </HBox>
     </VBox>
 </VBox>

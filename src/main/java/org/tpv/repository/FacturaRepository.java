@@ -29,6 +29,22 @@ public class FacturaRepository {
         return facturas;
     }
 
+    /**
+     * Obtiene el último número de factura registrado en el sistema.
+     * Útil para generar el siguiente número secuencial.
+     */
+    public String findLastNumeroFactura() throws SQLException {
+        String sql = "SELECT numero_factura FROM factura ORDER BY id DESC LIMIT 1";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getString("numero_factura");
+            }
+        }
+        return null;
+    }
+
     public List<Factura> findByFechaRango(LocalDateTime fechaInicio, LocalDateTime fechaFin) throws SQLException {
         List<Factura> facturas = new ArrayList<>();
         StringBuilder sql = new StringBuilder("SELECT * FROM factura WHERE 1=1");
@@ -46,11 +62,12 @@ public class FacturaRepository {
 
             int paramIndex = 1;
             if (fechaInicio != null) {
-                ps.setTimestamp(paramIndex++, Timestamp.valueOf(fechaInicio));
+                ps.setString(paramIndex++, fechaInicio.toString());
             }
             if (fechaFin != null) {
-                ps.setTimestamp(paramIndex++, Timestamp.valueOf(fechaFin));
+                ps.setString(paramIndex++, fechaFin.toString());
             }
+
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -67,13 +84,14 @@ public class FacturaRepository {
     public List<Factura> findByCliente(String busqueda) throws SQLException {
         List<Factura> facturas = new ArrayList<>();
         String sql = """
-            SELECT f.* FROM factura f
-            LEFT JOIN cliente c ON f.cliente_dni = c.dni
-            WHERE LOWER(c.nombre) LIKE LOWER(?) 
-               OR LOWER(c.dni) LIKE LOWER(?)
-               OR LOWER(f.cliente_nombre) LIKE LOWER(?)
-            ORDER BY f.fechaEmision DESC
-            """;
+        SELECT f.* 
+        FROM factura f
+        LEFT JOIN cliente c ON f.cliente_id = c.id
+        WHERE LOWER(c.nombre) LIKE LOWER(?) 
+           OR LOWER(COALESCE(c.dni, '')) LIKE LOWER(?) 
+           OR LOWER(f.cliente_nombre) LIKE LOWER(?)
+        ORDER BY f.fechaEmision DESC
+        """;
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -99,13 +117,17 @@ public class FacturaRepository {
         Factura factura = new Factura();
         factura.setId(rs.getLong("id"));
         factura.setNumeroFactura(rs.getString("numero_factura"));
-        factura.setFechaEmision(
-                LocalDateTime.parse(rs.getString("fechaEmision"))
-        );        factura.setClienteDni(rs.getString("cliente_dni"));
+        factura.setFechaEmision(LocalDateTime.parse(rs.getString("fechaEmision")));
+        // Leemos el ID del cliente para poder buscar sus datos exhaustivos luego
+        factura.setClienteId(rs.getLong("cliente_id"));
         factura.setClienteNombre(rs.getString("cliente_nombre"));
         factura.setTotalSinIva(rs.getBigDecimal("total_sin_iva"));
         factura.setTotalIva(rs.getBigDecimal("total_iva"));
         factura.setTotalConIva(rs.getBigDecimal("total_con_iva"));
+        factura.setMetodoPago(rs.getString("metodo_pago"));
+        factura.setEntregadoCliente(rs.getBigDecimal("entregado_cliente"));
+
+
         return factura;
     }
 
@@ -135,17 +157,21 @@ public class FacturaRepository {
     }
 
 
-    public void save(Factura factura) throws SQLException {
+    public void guardar(Factura factura) throws SQLException {
         String sqlFactura = """
         INSERT INTO factura (
             numero_factura,
             fechaEmision,
-            cliente_dni,
+            total_sin_iva, 
+            total_iva,   
+            total_con_iva,                 
+            cliente_id,                 
             cliente_nombre,
-            total_sin_iva,
-            total_iva,
-            total_con_iva
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            empleado_id,
+            empleado_nombre,
+            metodo_pago,
+            entregado_cliente                 
+        ) VALUES (?, ?, ?, ?, ?, ?, ?,?,?,?,?)
         """;
 
         try (Connection conn = DatabaseManager.getConnection()) {
@@ -154,13 +180,19 @@ public class FacturaRepository {
             try (PreparedStatement ps = conn.prepareStatement(
                     sqlFactura, Statement.RETURN_GENERATED_KEYS)) {
 
+                // 2. Mapeo correcto y ordenado de los 9 parámetros
                 ps.setString(1, factura.getNumeroFactura());
                 ps.setString(2, factura.getFechaEmision().toString());
-                ps.setString(3, factura.getClienteDni());
-                ps.setString(4, factura.getClienteNombre());
-                ps.setBigDecimal(5, factura.getTotalSinIva());
-                ps.setBigDecimal(6, factura.getTotalIva());
-                ps.setBigDecimal(7, factura.getTotalConIva());
+                ps.setBigDecimal(3, factura.getTotalSinIva());
+                ps.setBigDecimal(4, factura.getTotalIva());
+                ps.setBigDecimal(5, factura.getTotalConIva());
+                ps.setLong(6, factura.getClienteId());
+                ps.setString(7, factura.getClienteNombre());
+                ps.setLong(8,factura.getEmpleadoId());
+                ps.setString(9,factura.getEmpleadoNombre());
+                ps.setString(10, factura.getMetodoPago());
+                ps.setBigDecimal(11, factura.getEntregadoCliente());
+
 
                 ps.executeUpdate();
 
@@ -207,6 +239,4 @@ public class FacturaRepository {
             ps.executeBatch();
         }
     }
-
-
 }

@@ -11,18 +11,14 @@ import lombok.Setter;
 @AllArgsConstructor
 public class Cliente {
     private Long id;
-    private String dni;
-    private String nombre;
-    private String telefono;
-    private String direccion;
-    private String email;
-
-    // Cliente por defecto
-    public static Cliente clientePorDefecto() {
-        return new Cliente(null, "", "CLIENTE AL CONTADO", "", "", "");
-    }
+    private String dni="";
+    private String nombre="";
+    private String telefono="";
+    private String direccion="";
+    private String email="";
 
     public boolean esClientePorDefecto() {
-        return id == null || "CLIENTE AL CONTADO".equals(nombre);
+        return id != null && id == 1;
     }
+
 }

@@ -2,19 +2,17 @@ package org.tpv.service;
 
 import org.tpv.config.Configuracion;
 import org.tpv.domain.*;
-import org.tpv.repository.FacturaRepository;
 
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 public class VentaService {
 
     private Factura facturaActual;
     private final Configuracion configuracion;
-    private int contadorFacturas = 1;
-    private final FacturaRepository facturaRepository = new FacturaRepository();
-
+    private final FacturaService facturaService = new FacturaService();
+    private final ClienteService clienteService = new ClienteService();
 
     public VentaService(Configuracion configuracion) {
         this.configuracion = configuracion;
@@ -23,66 +21,60 @@ public class VentaService {
     public void iniciarVenta() {
         facturaActual = new Factura();
         facturaActual.setFechaEmision(LocalDateTime.now());
+        facturaActual.setNumeroFactura("PENDIENTE");
+        facturaActual.setMetodoPago("EFECTIVO");
+        facturaActual.setEntregadoCliente(BigDecimal.ZERO);
 
-        // Generar número de factura
-        String numeroFactura = generarNumeroFactura();
-        facturaActual.setNumeroFactura(numeroFactura);
-
-        // Asignar empleado por defecto
         Empleado empleado = Empleado.empleadoPorDefecto();
         facturaActual.setEmpleadoId(empleado.getId());
         facturaActual.setEmpleadoNombre(empleado.getNombre());
 
-        // Asignar cliente por defecto
-        Cliente cliente = Cliente.clientePorDefecto();
+        Cliente cliente = clienteService.obtenerClientePorDefecto();
         facturaActual.setClienteId(cliente.getId());
         facturaActual.setClienteNombre(cliente.getNombre());
-        facturaActual.setClienteDni(cliente.getDni());
     }
 
     public void guardarVenta() throws SQLException {
-        facturaRepository.save(facturaActual);
-    }
-
-    private String generarNumeroFactura() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-        String fecha = LocalDateTime.now().format(formatter);
-        String numero = String.format("%06d", contadorFacturas++);
-        return fecha + "-" + numero;
+        String nuevoNumero = facturaService.generarSiguienteNumeroFactura();
+        facturaActual.setNumeroFactura(nuevoNumero);
+        facturaService.guardarFactura(facturaActual);
     }
 
     public void asignarCliente(Cliente cliente) {
         if (facturaActual != null) {
             facturaActual.setClienteId(cliente.getId());
             facturaActual.setClienteNombre(cliente.getNombre());
-            facturaActual.setClienteDni(cliente.getDni());
         }
     }
 
-    public void añadirProducto(Producto producto) {
+    /** "EFECTIVO" o "TARJETA" */
+    public void setMetodoPago(String metodoPago) {
+        if (facturaActual != null) facturaActual.setMetodoPago(metodoPago);
+    }
 
+    /** Importe en efectivo que entrega el cliente */
+    public void setEntregadoCliente(BigDecimal importe) {
+        if (facturaActual != null) facturaActual.setEntregadoCliente(importe);
+    }
+
+    public void añadirProducto(Producto producto) {
         for (LineaFactura linea : facturaActual.getLineas()) {
             if (linea.getProductoId() != null &&
                     linea.getCodigoProducto().equals(producto.getCodigoBarra())) {
-
                 linea.setCantidad(linea.getCantidad() + 1);
                 facturaActual.recalcularTotales();
                 return;
             }
         }
-
-        LineaFactura nuevaLinea = new LineaFactura(
-                null,
-                null,
+        facturaActual.añadirLinea(new LineaFactura(
+                null, null,
                 producto.getId(),
                 producto.getCodigoBarra(),
                 producto.getNombre(),
                 producto.getPrecioBase(),
                 1,
                 configuracion.getIvaGeneral()
-        );
-
-        facturaActual.añadirLinea(nuevaLinea);
+        ));
     }
 
     public Factura finalizarVenta() {
@@ -90,12 +82,10 @@ public class VentaService {
     }
 
     public Cliente getClienteActual() {
-        if (facturaActual == null) return Cliente.clientePorDefecto();
-
-        Cliente cliente = new Cliente();
-        cliente.setId(facturaActual.getClienteId());
-        cliente.setNombre(facturaActual.getClienteNombre());
-        cliente.setDni(facturaActual.getClienteDni());
-        return cliente;
+        if (facturaActual == null) return clienteService.obtenerClientePorDefecto();
+        Cliente c = new Cliente();
+        c.setId(facturaActual.getClienteId());
+        c.setNombre(facturaActual.getClienteNombre());
+        return c;
     }
 }

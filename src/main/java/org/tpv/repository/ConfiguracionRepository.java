@@ -11,7 +11,15 @@ import java.sql.SQLException;
 public class ConfiguracionRepository {
 
     /**
-     * Obtiene la configuración de la base de datos
+     * Obtiene la configuración de la base de datos.
+     * Alias de obtenerConfiguracion para compatibilidad con FacturasController.
+     */
+    public Configuracion findFirst() throws SQLException {
+        return obtenerConfiguracion();
+    }
+
+    /**
+     * Obtiene la configuración de la base de datos (ID = 1)
      */
     public Configuracion obtenerConfiguracion() throws SQLException {
         String sql = "SELECT * FROM configuracion WHERE id = 1";

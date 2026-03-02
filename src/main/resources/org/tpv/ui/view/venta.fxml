@@ -40,7 +40,6 @@
             <VBox VBox.vgrow="ALWAYS"
                   style="-fx-background-color: white; -fx-background-radius: 5; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);">
 
-                <!-- Encabezado de la tabla -->
                 <HBox spacing="10" alignment="CENTER_LEFT" style="-fx-padding: 10; -fx-background-color: #ecf0f1; -fx-background-radius: 5 5 0 0;">
                     <Label text="ARTÍCULOS EN VENTA" style="-fx-font-size: 16px; -fx-font-weight: bold;" />
                     <Region HBox.hgrow="ALWAYS" />
@@ -50,17 +49,12 @@
                 <TableView fx:id="tablaTicket" VBox.vgrow="ALWAYS"
                            style="-fx-background-color: white; -fx-table-cell-border-color: transparent;">
                     <columns>
-                        <TableColumn fx:id="colCodigo" editable="true" prefWidth="100.0" text="CÓDIGO"
-                                     style="-fx-alignment: CENTER-LEFT;" />
-                        <TableColumn fx:id="colNombre" editable="true" prefWidth="280.0" text="PRODUCTO" />
-                        <TableColumn fx:id="colCantidad" editable="true" prefWidth="80.0" text="CANT."
-                                     style="-fx-alignment: CENTER;" />
-                        <TableColumn fx:id="colPrecio" editable="true" prefWidth="100.0" text="PRECIO"
-                                     style="-fx-alignment: CENTER-RIGHT;" />
-                        <TableColumn fx:id="colDescuento" editable="true" prefWidth="80.0" text="DTO. %"
-                                     style="-fx-alignment: CENTER;" />
-                        <TableColumn fx:id="colSubtotal" editable="false" prefWidth="120.0" text="SUBTOTAL"
-                                     style="-fx-alignment: CENTER-RIGHT;" />
+                        <TableColumn fx:id="colCodigo"    editable="true"  prefWidth="100.0" text="CÓDIGO"   style="-fx-alignment: CENTER-LEFT;" />
+                        <TableColumn fx:id="colNombre"    editable="true"  prefWidth="280.0" text="PRODUCTO" />
+                        <TableColumn fx:id="colCantidad"  editable="true"  prefWidth="80.0"  text="CANT."    style="-fx-alignment: CENTER;" />
+                        <TableColumn fx:id="colPrecio"    editable="true"  prefWidth="100.0" text="PRECIO"   style="-fx-alignment: CENTER-RIGHT;" />
+                        <TableColumn fx:id="colDescuento" editable="true"  prefWidth="80.0"  text="DTO. %"   style="-fx-alignment: CENTER;" />
+                        <TableColumn fx:id="colSubtotal"  editable="false" prefWidth="120.0" text="SUBTOTAL" style="-fx-alignment: CENTER-RIGHT;" />
                     </columns>
                     <placeholder>
                         <Label text="No hay productos en la venta actual" style="-fx-font-size: 14px; -fx-text-fill: #95a5a6;" />
@@ -76,16 +70,14 @@
                             style="-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 6 15; -fx-background-radius: 3; -fx-cursor: hand;" />
                     <Button fx:id="btnEliminar" onAction="#onEliminarLinea" text="🗑️ Eliminar"
                             style="-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 6 15; -fx-background-radius: 3; -fx-cursor: hand;" />
-
                     <Region HBox.hgrow="ALWAYS" />
-
                     <Label text="💡 Doble click para editar" style="-fx-text-fill: #7f8c8d; -fx-font-style: italic; -fx-font-size: 12px;" />
                 </HBox>
             </VBox>
         </VBox>
     </center>
 
-    <!-- PANEL DERECHO - RESUMEN Y ACCIONES -->
+    <!-- PANEL DERECHO -->
     <right>
         <VBox spacing="15" prefWidth="320" minWidth="300"
               style="-fx-background-color: white; -fx-padding: 20; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 10, 0, -2, 0);">
@@ -95,10 +87,8 @@
                   style="-fx-background-color: #ecf0f1; -fx-padding: 20; -fx-background-radius: 8;">
                 <Label text="RESUMEN DE VENTA"
                        style="-fx-font-weight: bold; -fx-font-size: 18px; -fx-text-fill: #2c3e50;" />
-
                 <Separator />
 
-                <!-- Base imponible -->
                 <HBox>
                     <VBox spacing="5" HBox.hgrow="ALWAYS">
                         <Label text="Base imponible" style="-fx-font-size: 13px; -fx-text-fill: #7f8c8d;" />
@@ -107,7 +97,6 @@
                     </VBox>
                 </HBox>
 
-                <!-- IVA -->
                 <HBox>
                     <VBox spacing="5" HBox.hgrow="ALWAYS">
                         <Label text="IVA (21%)" style="-fx-font-size: 13px; -fx-text-fill: #7f8c8d;" />
@@ -118,7 +107,6 @@
 
                 <Separator style="-fx-background-color: #27ae60; -fx-pref-height: 2;" />
 
-                <!-- TOTAL -->
                 <HBox>
                     <VBox spacing="5" HBox.hgrow="ALWAYS">
                         <Label text="TOTAL A PAGAR" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #27ae60;" />
@@ -126,6 +114,44 @@
                                style="-fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #27ae60;" />
                     </VBox>
                 </HBox>
+            </VBox>
+
+            <!-- SELECTOR DE MÉTODO DE PAGO -->
+            <VBox spacing="8"
+                  style="-fx-background-color: #f8f9fa; -fx-padding: 15; -fx-background-radius: 8; -fx-border-color: #dee2e6; -fx-border-radius: 8; -fx-border-width: 1;">
+                <Label text="MÉTODO DE PAGO"
+                       style="-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #6c757d;" />
+
+                <!-- Toggle buttons Efectivo / Tarjeta -->
+                <HBox spacing="0">
+                    <ToggleButton fx:id="btnPagoEfectivo" text="💵  Efectivo" maxWidth="Infinity"
+                                  onAction="#onMetodoPagoChanged"
+                                  HBox.hgrow="ALWAYS"
+                                  style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10; -fx-background-radius: 6 0 0 6; -fx-cursor: hand;" />
+                    <ToggleButton fx:id="btnPagoTarjeta" text="💳  Tarjeta" maxWidth="Infinity"
+                                  onAction="#onMetodoPagoChanged"
+                                  HBox.hgrow="ALWAYS"
+                                  style="-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10; -fx-background-radius: 0 6 6 0; -fx-cursor: hand;" />
+                </HBox>
+
+                <!-- Panel efectivo: importe entregado + cambio (visible solo con efectivo) -->
+                <VBox fx:id="panelEfectivo" spacing="8" managed="true" visible="true">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Entrega cliente:" style="-fx-font-size: 13px; -fx-min-width: 115;" />
+                        <TextField fx:id="txtEntregado"
+                                   promptText="0.00"
+                                   prefWidth="90"
+                                   style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 6;"
+                                   onKeyReleased="#onEntregadoChanged" />
+                        <Label text="€" style="-fx-font-size: 14px;" />
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="Cambio:" style="-fx-font-size: 13px; -fx-min-width: 115;" />
+                        <Label fx:id="lblCambio" text="—"
+                               style="-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #27ae60;" />
+                        <Label text="€" style="-fx-font-size: 14px; -fx-text-fill: #27ae60;" />
+                    </HBox>
+                </VBox>
             </VBox>
 
             <Region VBox.vgrow="ALWAYS" />
@@ -142,11 +168,12 @@
 
                 <Label text="Atajos de teclado:" style="-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #95a5a6;" />
                 <VBox spacing="3">
-                    <Label text="F1 - Cobrar" style="-fx-font-size: 10px; -fx-text-fill: #7f8c8d;" />
-                    <Label text="F2 - Nueva venta" style="-fx-font-size: 10px; -fx-text-fill: #7f8c8d;" />
+                    <Label text="F1 - Cobrar"         style="-fx-font-size: 10px; -fx-text-fill: #7f8c8d;" />
+                    <Label text="F2 - Nueva venta"    style="-fx-font-size: 10px; -fx-text-fill: #7f8c8d;" />
                     <Label text="Enter - Añadir producto" style="-fx-font-size: 10px; -fx-text-fill: #7f8c8d;" />
                 </VBox>
             </VBox>
         </VBox>
     </right>
+
 </BorderPane>
