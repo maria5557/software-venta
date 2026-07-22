@@ -115,13 +115,13 @@ public class ImpresoraService {
 
                 // Ciudad
                 g2d.setFont(fontSmall);
-                y = drawText(g2d, config.getCiudad(), x, y, width, "center");
+                y = drawText(g2d, "FIAZ AHMED", x, y, width, "center");
 
                 // Dirección
                 y = drawText(g2d, config.getDireccion(), x, y, width, "center");
 
                 // Código postal + provincia
-                y = drawText(g2d, config.getCodigoPostal() + " Jaén", x, y, width, "center");
+                y = drawText(g2d, config.getCodigoPostal() + config.getCiudad(), x, y, width, "center");
 
                 // NIF/CIF (si existe)
                 if (config.getNif() != null && !config.getNif().isEmpty()) {
@@ -276,7 +276,10 @@ public class ImpresoraService {
                 // ===== PIE =====
                 g2d.setFont(fontNormal);
                 y = drawText(g2d, "Gracias por su compra", x, y, width, "center");
-                drawText(g2d, "Vuelva pronto",         x, y, width, "center");
+                y += 6;
+                g2d.setFont(fontSmall);
+                y = drawText(g2d, "Visítanos en:", x, y, width, "center");
+                y = drawText(g2d, "www.almadenashop.com", x, y, width, "center");
 
             } catch (Exception e) {
                 throw new PrinterException(e.getMessage());
