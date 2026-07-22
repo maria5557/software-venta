@@ -118,15 +118,20 @@ public class FacturaRepository {
         factura.setId(rs.getLong("id"));
         factura.setNumeroFactura(rs.getString("numero_factura"));
         factura.setFechaEmision(LocalDateTime.parse(rs.getString("fechaEmision")));
-        // Leemos el ID del cliente para poder buscar sus datos exhaustivos luego
+
+        // Cliente
         factura.setClienteId(rs.getLong("cliente_id"));
         factura.setClienteNombre(rs.getString("cliente_nombre"));
+
+        factura.setEmpleadoId(rs.getObject("empleado_id") != null ? rs.getLong("empleado_id") : null);
+        factura.setEmpleadoNombre(rs.getString("empleado_nombre"));
+
+        // Totales y pago
         factura.setTotalSinIva(rs.getBigDecimal("total_sin_iva"));
         factura.setTotalIva(rs.getBigDecimal("total_iva"));
         factura.setTotalConIva(rs.getBigDecimal("total_con_iva"));
         factura.setMetodoPago(rs.getString("metodo_pago"));
         factura.setEntregadoCliente(rs.getBigDecimal("entregado_cliente"));
-
 
         return factura;
     }
@@ -188,7 +193,12 @@ public class FacturaRepository {
                 ps.setBigDecimal(5, factura.getTotalConIva());
                 ps.setLong(6, factura.getClienteId());
                 ps.setString(7, factura.getClienteNombre());
-                ps.setLong(8,factura.getEmpleadoId());
+                // Protección para evitar NullPointerException con Long
+                if (factura.getEmpleadoId() != null) {
+                    ps.setLong(8, factura.getEmpleadoId());
+                } else {
+                    ps.setNull(8, java.sql.Types.INTEGER);
+                }
                 ps.setString(9,factura.getEmpleadoNombre());
                 ps.setString(10, factura.getMetodoPago());
                 ps.setBigDecimal(11, factura.getEntregadoCliente());

@@ -18,10 +18,8 @@ import javafx.scene.layout.VBox;
 import javafx.util.converter.BigDecimalStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 import org.tpv.config.Configuracion;
-import org.tpv.domain.Cliente;
-import org.tpv.domain.Factura;
-import org.tpv.domain.LineaFactura;
-import org.tpv.domain.Producto;
+import org.tpv.config.SesionUsuario;
+import org.tpv.domain.*;
 import org.tpv.repository.ConfiguracionRepository;
 import org.tpv.service.ClienteService;
 import org.tpv.service.ImpresoraService;
@@ -101,7 +99,9 @@ public class VentaController {
             txtCodigoBarra.requestFocus();
             iniciarReloj();
 
-            if (lblUsuario     != null) lblUsuario.setText("Usuario: Admin");
+            if (lblUsuario != null && SesionUsuario.getEmpleadoActivo() != null) {
+                lblUsuario.setText("Usuario: " + SesionUsuario.getEmpleadoActivo().getNombre());
+            }
             if (lblClienteActual != null) actualizarLabelCliente();
 
             configurarAtajosTeclado();
@@ -382,6 +382,16 @@ public class VentaController {
 
         // Guardar en BD
         Factura factura = ventaService.finalizarVenta();
+        Empleado empleadoActual = SesionUsuario.getEmpleadoActivo();
+
+        if (empleadoActual != null) {
+            factura.setEmpleadoId(empleadoActual.getId());
+            factura.setEmpleadoNombre(empleadoActual.getNombre());
+        } else {
+
+            factura.setEmpleadoNombre("Admin");
+        }
+
         try {
             ventaService.guardarVenta();
             System.out.println("✓ Factura guardada: " + factura.getNumeroFactura());

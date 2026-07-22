@@ -35,8 +35,8 @@
             <Label style="-fx-font-weight: bold;" text="Dirección:" GridPane.columnIndex="0" GridPane.rowIndex="1" />
             <TextField fx:id="txtDireccion" promptText="Calle y número" GridPane.columnIndex="1" GridPane.rowIndex="1" />
 
-            <Label style="-fx-font-weight: bold;" text="Empleado" GridPane.columnIndex="0" GridPane.rowIndex="2" />
-            <TextField fx:id="txtEmpleado" promptText="Nombre del empleado" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+            <Label style="-fx-font-weight: bold;" text="Ciudad:" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+            <TextField fx:id="txtCiudad" promptText="Nombre de la ciudad" GridPane.columnIndex="1" GridPane.rowIndex="2" />
 
             <Label style="-fx-font-weight: bold;" text="Código Postal:" GridPane.columnIndex="0" GridPane.rowIndex="3" />
             <TextField fx:id="txtCodigoPostal" promptText="CP" GridPane.columnIndex="1" GridPane.rowIndex="3" />

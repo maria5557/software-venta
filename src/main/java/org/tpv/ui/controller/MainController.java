@@ -6,8 +6,12 @@ import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.StackPane;
+import org.tpv.config.SesionUsuario;
+import org.tpv.domain.Empleado;
+import org.tpv.repository.EmpleadoRepository;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -24,14 +28,20 @@ public class MainController {
     @FXML private Button btnMenuConfiguracion;
 
     @FXML
-    public void initialize() {
+    public void initialize() throws SQLException {
         System.out.println("✓ Inicializando MainController...");
+
+        // 1. Mostrar nombre del usuario activo en la barra del menú principal
+        if (lblUsuario != null && SesionUsuario.getEmpleadoActivo() != null) {
+            lblUsuario.setText("Usuario: " + SesionUsuario.getEmpleadoActivo().getNombre());
+        }
 
         // Iniciar reloj
         iniciarReloj();
 
         // Cargar vista de ventas por defecto
         mostrarVentas();
+
 
         System.out.println("✓ MainController inicializado");
     }
