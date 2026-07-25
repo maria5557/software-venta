@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="15" style="-fx-padding: 20; -fx-background-color: #f5f5f5;"
+      xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="org.tpv.ui.controller.FacturasController"
+      prefHeight="800.0" prefWidth="1180.0"
+      minHeight="600.0" minWidth="900.0">
+
+    <!-- CABECERA -->
+    <HBox alignment="CENTER_LEFT" spacing="15"
+          style="-fx-background-color: white; -fx-padding: 20; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);">
+        <Label text="📄 Historial de Facturas" style="-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;" />
+
+        <Region HBox.hgrow="ALWAYS" />
+
+        <Label text="Filtrar por fecha:" style="-fx-font-weight: bold;" />
+        <DatePicker fx:id="dateFechaInicio" promptText="Fecha inicio"
+                    style="-fx-pref-width: 140;" />
+        <DatePicker fx:id="dateFechaFin" promptText="Fecha fin"
+                    style="-fx-pref-width: 140;" />
+        <Button fx:id="btnFiltrar" text="🔍 Filtrar" onAction="#filtrarFacturas"
+                style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
+    </HBox>
+
+    <!-- BÚSQUEDA POR CLIENTE -->
+    <HBox alignment="CENTER_LEFT" spacing="15"
+          style="-fx-background-color: white; -fx-padding: 15; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);">
+        <Label text="Buscar por cliente:" style="-fx-font-weight: bold;" />
+        <TextField fx:id="txtBusquedaCliente" promptText="Nombre o DNI del cliente..." prefWidth="300"
+                   style="-fx-font-size: 14px; -fx-padding: 8;" />
+        <Button fx:id="btnBuscarCliente" text="🔍 Buscar" onAction="#buscarPorCliente"
+                style="-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
+        <Button fx:id="btnLimpiarFiltros" text="🔄 Limpiar Filtros" onAction="#limpiarFiltros"
+                style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
+    </HBox>
+
+    <!-- TABLA DE FACTURAS -->
+    <VBox VBox.vgrow="ALWAYS"
+          style="-fx-background-color: white; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 5, 0, 0, 2);">
+
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 15; -fx-background-color: #ecf0f1; -fx-background-radius: 8 8 0 0;">
+            <Label text="LISTA DE FACTURAS" style="-fx-font-size: 16px; -fx-font-weight: bold;" />
+            <Region HBox.hgrow="ALWAYS" />
+            <Label fx:id="lblTotalFacturas" text="0 facturas" style="-fx-font-size: 14px; -fx-text-fill: #7f8c8d; -fx-padding: 0 15 0 0;" />
+            <Label fx:id="lblSumaTotal" text="Total: 0.00 €" style="-fx-font-size: 14px; -fx-text-fill: #27ae60; -fx-font-weight: bold;" />
+        </HBox>
+
+        <TableView fx:id="tablaFacturas" VBox.vgrow="ALWAYS"
+                   style="-fx-background-color: white;">
+            <columns>
+                <TableColumn fx:id="colNumero" prefWidth="150.0" text="Nº FACTURA" />
+                <TableColumn fx:id="colFecha" prefWidth="180.0" text="FECHA" />
+                <TableColumn fx:id="colCliente" prefWidth="300.0" text="CLIENTE" />
+                <TableColumn fx:id="colTotal" prefWidth="150.0" text="TOTAL" />
+                <TableColumn fx:id="colAcciones" prefWidth="120.0" text="ACCIONES" />
+            </columns>
+            <placeholder>
+                <Label text="No hay facturas registradas" style="-fx-font-size: 14px; -fx-text-fill: #95a5a6;" />
+            </placeholder>
+        </TableView>
+    </VBox>
+</VBox>

@@ -26,7 +26,7 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>org.tpv.Main</mainClass>
+                  <mainClass>org.tpv.Launcher</mainClass>
                 </transformer>
               </transformers>
             </configuration>

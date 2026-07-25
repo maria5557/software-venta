@@ -1,5 +1,6 @@
 package org.tpv.database;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -7,10 +8,23 @@ import java.sql.Statement;
 
 public class DatabaseManager {
 
-    // URL de conexión - esto creará un archivo "tpv.db" en la carpeta data
-    private static final String URL = "jdbc:sqlite:data/tpv.db";
+    // 1. Definimos la carpeta y la ruta completa de forma limpia
+    private static final String CARPETA_APP = System.getProperty("user.home")
+            + File.separator + "AppData"
+            + File.separator + "Local"
+            + File.separator + "MiTPV";
+
+    private static final String ARCHIVO_DB = CARPETA_APP + File.separator + "tpv.db";
+    private static final String URL = "jdbc:sqlite:" + ARCHIVO_DB;
 
     public static Connection getConnection() throws SQLException {
+
+        // 2. ¡CLAVE DEL FIX! Si la carpeta MiTPV no existe en el PC nuevo, la creamos primero
+        File carpeta = new File(CARPETA_APP);
+        if (!carpeta.exists()) {
+            carpeta.mkdirs();
+        }
+
         Connection conn = DriverManager.getConnection(URL);
         // Habilitar claves foráneas en SQLite
         try (Statement stmt = conn.createStatement()) {
@@ -48,6 +62,12 @@ public class DatabaseManager {
                 )
             """);
 
+            // ⬇️ Insertar cliente por defecto para ventas genéricas
+            stmt.execute("""
+                INSERT OR IGNORE INTO cliente (id, dni, nombre, telefono, direccion, email)
+                VALUES (1, '00000000X', 'AL CONTADO', '', '', '')
+            """);
+
             // Crear tabla empleado
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS empleado (
@@ -69,7 +89,7 @@ public class DatabaseManager {
                 CREATE TABLE IF NOT EXISTS factura (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     numero_factura TEXT,
-                    fecha TEXT NOT NULL,
+                    fechaEmision TEXT NOT NULL,
                     cliente_id INTEGER,
                     cliente_nombre TEXT,
                     cliente_dni TEXT,
@@ -84,6 +104,12 @@ public class DatabaseManager {
                     FOREIGN KEY (empleado_id) REFERENCES empleado(id)
                 )
             """);
+
+            try {
+                stmt.execute("ALTER TABLE factura RENAME COLUMN fecha TO fechaEmision;");
+            } catch (SQLException ignored) {
+                // Si la columna ya se llama fechaEmision o la BD es nueva, ignora el aviso
+            }
 
             // Crear tabla linea_factura
             stmt.execute("""
@@ -120,11 +146,10 @@ public class DatabaseManager {
             // Insertar configuración por defecto si no existe
             stmt.execute("""
                 INSERT OR IGNORE INTO configuracion (id, iva_general, nombre_tienda, direccion, ciudad, codigo_postal, telefono, cif, nif, email)
-                VALUES (1, 21, 'MI TIENDA', 'Calle Principal 123', 'Ciudad', '11000', '956 123 456', 'B12345678', '12345678X', 'info@mitienda.com')
+                VALUES (1, 21, 'ALMADENA TELEFONIA', 'AVDA Granada 5', 'Jaén', '23003', '953 47 48 40', '78429149-T', '78429149-T', 'almadenatelefonia@hotmail.com')
             """);
 
             System.out.println("✓ Base de datos SQLite inicializada correctamente");
-            System.out.println("✓ Archivo de base de datos: data/tpv.db");
-        }
+            System.out.println("✓ Archivo de base de datos en: " + ARCHIVO_DB);        }
     }
 }

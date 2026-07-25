@@ -810,22 +810,12 @@ public class VentaController {
 
     // ===== IMPRESIÓN =====
     private void imprimirTicket(Factura factura) {
-        String[] impresoras = impresoraService.obtenerImpresorasDisponibles();
-        if (impresoras.length == 0) { mostrarError("Sin impresoras", "No se detectaron impresoras"); return; }
-        String imp = impresoras[0];
-        if (impresoras.length > 1) {
-            ChoiceDialog<String> d = new ChoiceDialog<>(impresoras[0], impresoras);
-            d.setTitle("Impresora"); d.setHeaderText("Selecciona impresora"); d.setContentText("Impresora:");
-            Optional<String> sel = d.showAndWait();
-            if (sel.isEmpty()) return;
-            imp = sel.get();
-        }
         try {
-            impresoraService.imprimirTicket(factura, imp);
-            Alert ok = new Alert(Alert.AlertType.INFORMATION);
-            ok.setTitle("OK"); ok.setHeaderText("Ticket impreso"); ok.setContentText("Impresora: " + imp);
-            ok.showAndWait();
-        } catch (Exception e) { mostrarError("Error al imprimir", e.getMessage()); }
+            if (impresoraService != null) impresoraService.imprimirTicketConSeleccion(factura);
+            else mostrarError("Error", "Servicio de impresión no disponible.");
+        } catch (Exception e) {
+            mostrarError("Error", "Servicio de impresión no disponible." + e.getMessage());
+        }
     }
 
     // ===== AUXILIARES =====

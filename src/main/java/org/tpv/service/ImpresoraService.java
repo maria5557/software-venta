@@ -1,5 +1,7 @@
 package org.tpv.service;
 
+import javafx.scene.control.Alert;
+import javafx.scene.control.ChoiceDialog;
 import org.tpv.config.Configuracion;
 import org.tpv.domain.Factura;
 import org.tpv.domain.LineaFactura;
@@ -12,6 +14,7 @@ import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Servicio de impresión de tickets v4.
@@ -121,7 +124,7 @@ public class ImpresoraService {
                 y = drawText(g2d, config.getDireccion(), x, y, width, "center");
 
                 // Código postal + provincia
-                y = drawText(g2d, config.getCodigoPostal() + config.getCiudad(), x, y, width, "center");
+                y = drawText(g2d, config.getCodigoPostal() + " " + config.getCiudad(), x, y, width, "center");
 
                 // NIF/CIF (si existe)
                 if (config.getNif() != null && !config.getNif().isEmpty()) {
@@ -328,5 +331,51 @@ public class ImpresoraService {
             for (int i = 0; i < n; i++) sb.append(c);
             return drawText(g2d, sb.toString(), x, y, width, "left");
         }
+    }
+
+    public void imprimirTicketConSeleccion(Factura factura) {
+        if (factura == null) return;
+
+        String[] impresoras = obtenerImpresorasDisponibles();
+        if (impresoras.length == 0) {
+            mostrarAlerta(Alert.AlertType.ERROR, "Sin impresoras", "No se detectaron impresoras en el sistema.");
+            return;
+        }
+
+        // 1. Buscar "POS-58" para establecerla por defecto
+        String impDefecto = impresoras[0];
+        for (String imp : impresoras) {
+            if (imp.toLowerCase().contains("pos-58") || imp.toLowerCase().contains("pos58")) {
+                impDefecto = imp;
+                break;
+            }
+        }
+
+        // 2. Diálogo de selección para el usuario
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(impDefecto, impresoras);
+        dialog.setTitle("Imprimir Ticket");
+        dialog.setHeaderText("Selecciona la impresora");
+        dialog.setContentText("Impresora:");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            String seleccionada = result.get();
+            try {
+                // Llamada al método interno que realiza el trabajo físico
+                imprimirTicket(factura, seleccionada);
+                mostrarAlerta(Alert.AlertType.INFORMATION, "Éxito", "Ticket enviado correctamente a: " + seleccionada);
+            } catch (Exception e) {
+                mostrarAlerta(Alert.AlertType.ERROR, "Error de impresión", e.getMessage());
+            }
+        }
+    }
+
+    // Métodos auxiliares dentro de ImpresoraService para simplificar alertas JavaFX
+    private void mostrarAlerta(Alert.AlertType tipo, String titulo, String mensaje) {
+        Alert alert = new Alert(tipo);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.showAndWait();
     }
 }

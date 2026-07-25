@@ -310,10 +310,10 @@ public class FacturasController {
 
     private void reimprimirTicket(Factura factura) {
         try {
-            if (impresoraService != null) impresoraService.imprimirTicket(factura, null);
+            if (impresoraService != null) impresoraService.imprimirTicketConSeleccion(factura);
             else mostrarError("Error", "Servicio de impresión no disponible.");
         } catch (Exception e) {
-            mostrarError("Error", "No se pudo reimprimir: " + e.getMessage());
+            mostrarError("Error", "Servicio de impresión no disponible." + e.getMessage());
         }
     }
 
