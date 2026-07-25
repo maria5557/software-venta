@@ -39,6 +39,14 @@ public class MainController {
         // Iniciar reloj
         iniciarReloj();
 
+        // COMPROBAR ACTUALIZACIONES AL ARRANCAR
+        try {
+            org.tpv.service.UpdateService updateService = new org.tpv.service.UpdateService();
+            updateService.comprobarActualizacionesAsync();
+        } catch (Exception e) {
+            System.err.println("No se pudo iniciar el servicio de actualización: " + e.getMessage());
+        }
+
         // Cargar vista de ventas por defecto
         mostrarVentas();
 
