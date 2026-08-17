@@ -1,5 +1,6 @@
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\config\Configuracion.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\config\SesionUsuario.java
+D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\config\VersionApp.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\database\DatabaseManager.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\domain\Cliente.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\domain\Empleado.java
@@ -17,6 +18,7 @@ D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\service\ClienteService.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\service\FacturaService.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\service\ImpresoraService.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\service\ProductoService.java
+D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\service\UpdateService.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\service\VentaService.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\ui\controller\ClientesController.java
 D:\PROYECTO-TIENDA\tpv-tienda\src\main\java\org\tpv\ui\controller\ConfiguracionController.java

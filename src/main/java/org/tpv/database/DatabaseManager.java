@@ -1,31 +1,61 @@
 package org.tpv.database;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Properties;
 
 public class DatabaseManager {
 
-    // 1. Definimos la carpeta y la ruta completa de forma limpia
-    private static final String CARPETA_APP = System.getProperty("user.home")
-            + File.separator + "AppData"
-            + File.separator + "Local"
-            + File.separator + "MiTPV";
+    private static String dbUrl;
 
-    private static final String ARCHIVO_DB = CARPETA_APP + File.separator + "tpv.db";
-    private static final String URL = "jdbc:sqlite:" + ARCHIVO_DB;
+    // Se ejecuta automáticamente al cargar la clase en memoria
+    static {
+        cargarConfiguracion();
+    }
 
-    public static Connection getConnection() throws SQLException {
+    private static void cargarConfiguracion() {
+        File configFile = new File("config.properties");
+        System.out.println("🔍 Buscando config.properties en: " + configFile.getAbsolutePath());
 
-        // 2. ¡CLAVE DEL FIX! Si la carpeta MiTPV no existe en el PC nuevo, la creamos primero
-        File carpeta = new File(CARPETA_APP);
-        if (!carpeta.exists()) {
-            carpeta.mkdirs();
+        // 1. Si existe el archivo config.properties, leemos la URL remota o de red
+        if (configFile.exists()) {
+            try (InputStream input = new FileInputStream(configFile)) {
+                Properties prop = new Properties();
+                prop.load(input);
+                dbUrl = prop.getProperty("db.url");
+                System.out.println("✓ Conexión configurada desde config.properties: " + dbUrl);
+            } catch (Exception e) {
+                System.err.println("⚠️ Error al leer config.properties, se usará la ruta local: " + e.getMessage());
+                dbUrl = null;
+            }
         }
 
-        Connection conn = DriverManager.getConnection(URL);
+        // 2. Si NO existe config.properties o estaba vacío, usamos la ruta por defecto en AppData
+        if (dbUrl == null || dbUrl.trim().isEmpty()) {
+            String carpetaApp = System.getProperty("user.home")
+                    + File.separator + "AppData"
+                    + File.separator + "Local"
+                    + File.separator + "MiTPV";
+
+            File carpeta = new File(carpetaApp);
+            if (!carpeta.exists()) {
+                carpeta.mkdirs();
+            }
+
+            String archivoDb = carpetaApp + File.separator + "tpv.db";
+            dbUrl = "jdbc:sqlite:" + archivoDb;
+            System.out.println("ℹ️ No se encontró config.properties. Usando base de datos local: " + dbUrl);
+        }
+    }
+
+    public static Connection getConnection() throws SQLException {
+        Connection conn = DriverManager.getConnection(dbUrl);
+
         // Habilitar claves foráneas en SQLite
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("PRAGMA foreign_keys = ON");
@@ -34,8 +64,7 @@ public class DatabaseManager {
     }
 
     public static void inicializarBaseDatos() throws SQLException {
-        // Crear la carpeta data si no existe
-        new java.io.File("data").mkdirs();
+        new File("data").mkdirs();
 
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
@@ -62,7 +91,7 @@ public class DatabaseManager {
                 )
             """);
 
-            // ⬇️ Insertar cliente por defecto para ventas genéricas
+            // Insertar cliente por defecto para ventas genéricas
             stmt.execute("""
                 INSERT OR IGNORE INTO cliente (id, dni, nombre, telefono, direccion, email)
                 VALUES (1, '00000000X', 'AL CONTADO', '', '', '')
@@ -127,7 +156,7 @@ public class DatabaseManager {
                 )
             """);
 
-            // Crear tabla configuracion (nueva)
+            // Crear tabla configuracion
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS configuracion (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -150,6 +179,7 @@ public class DatabaseManager {
             """);
 
             System.out.println("✓ Base de datos SQLite inicializada correctamente");
-            System.out.println("✓ Archivo de base de datos en: " + ARCHIVO_DB);        }
+            System.out.println("✓ Conectado a: " + dbUrl);
+        }
     }
 }
