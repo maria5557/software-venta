@@ -3,7 +3,9 @@ package org.tpv.ui.controller;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import org.tpv.config.Configuracion;
+import org.tpv.config.VersionApp;
 import org.tpv.repository.ConfiguracionRepository;
+import org.tpv.service.UpdateService;
 
 import java.sql.SQLException;
 
@@ -20,6 +22,8 @@ public class ConfiguracionController {
     @FXML private Spinner<Integer> spinnerIva;
     @FXML private Button btnGuardar;
     @FXML private Button btnCancelar;
+    @FXML private Label lblVersionActual;
+    @FXML private Button btnBuscarActualizaciones;
 
     private ConfiguracionRepository configRepository;
     private Configuracion configuracionActual;
@@ -38,7 +42,16 @@ public class ConfiguracionController {
 
         cargarConfiguracion();
 
+        if (lblVersionActual != null) {
+            lblVersionActual.setText("Versión instalada: " + VersionApp.VERSION_ACTUAL);
+        }
+
         System.out.println("✓ ConfiguracionController inicializado");
+    }
+
+    @FXML
+    private void buscarActualizaciones() {
+        new UpdateService().buscarActualizacionesManual();
     }
 
     private void cargarConfiguracion() {
