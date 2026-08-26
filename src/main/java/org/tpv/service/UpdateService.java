@@ -20,8 +20,11 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Servicio de actualizaciones automáticas desde GitHub.
@@ -53,6 +56,8 @@ public class UpdateService {
     private static final String NOMBRE_JAR_APP = "tpv-tienda-1.0-SNAPSHOT.jar";
     private static final String NOMBRE_EXE = "MiTPV.exe";
     private static final String NOMBRE_LOG = "actualizaciones.log";
+    /** Nombre de la tarea programada temporal usada para desligar el reinicio del proceso actual. */
+    private static final String NOMBRE_TAREA_PROGRAMADA = "MiTPV_ActualizarAhora";
 
     private final HttpClient client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.ALWAYS)
@@ -197,6 +202,11 @@ public class UpdateService {
                 log(installDir, "Actualización descargada correctamente: " + destino.getAbsolutePath());
 
                 crearYEjecutarScriptBat(installDir);
+
+                // Pequeño margen para que la tarea programada quede lanzada
+                // antes de cerrar esta app (ver crearYEjecutarScriptBat para
+                // el detalle de por qué usamos el Programador de tareas).
+                Thread.sleep(500);
                 Platform.runLater(() -> System.exit(0));
 
             } catch (Exception e) {
@@ -213,11 +223,17 @@ public class UpdateService {
 
         // cd /d "%~dp0" garantiza que el script trabaje en la carpeta donde está instalado MiTPV,
         // sea cual sea la carpeta desde la que se lanzó originalmente el .exe.
+        //
+        // NOTA sobre "ping -n 4" en vez de "timeout": el comando "timeout" de
+        // Windows necesita una consola interactiva real; si el script lo lanza
+        // un proceso sin consola, "timeout" falla al instante y NO espera.
+        // "ping" a localhost sí funciona igual sin consola y nos da una espera
+        // fiable (aprox. 3 segundos con "-n 4").
         String contenidoBat = "@echo off\r\n" +
                 "setlocal\r\n" +
                 "cd /d \"%~dp0\"\r\n" +
                 "echo [%date% %time%] Iniciando actualizacion... >> \"" + NOMBRE_LOG + "\"\r\n" +
-                "timeout /t 2 /nobreak > nul\r\n" +
+                "ping -n 4 127.0.0.1 > nul\r\n" +
                 "\r\n" +
                 "set INTENTOS=0\r\n" +
                 ":REINTENTAR\r\n" +
@@ -228,7 +244,7 @@ public class UpdateService {
                 "        echo [%date% %time%] ERROR: no se pudo copiar el jar tras %INTENTOS% intentos. >> \"" + NOMBRE_LOG + "\"\r\n" +
                 "        goto FIN\r\n" +
                 "    )\r\n" +
-                "    timeout /t 1 /nobreak > nul\r\n" +
+                "    ping -n 2 127.0.0.1 > nul\r\n" +
                 "    goto REINTENTAR\r\n" +
                 ")\r\n" +
                 "\r\n" +
@@ -237,12 +253,82 @@ public class UpdateService {
                 "start \"\" \"" + NOMBRE_EXE + "\"\r\n" +
                 "\r\n" +
                 ":FIN\r\n" +
+                "schtasks /delete /tn \"" + NOMBRE_TAREA_PROGRAMADA + "\" /f > nul 2>&1\r\n" +
                 "del \"%~f0\"\r\n";
 
         Files.writeString(scriptBat.toPath(), contenidoBat);
-        new ProcessBuilder("cmd", "/c", scriptBat.getAbsolutePath())
-                .directory(installDir)
-                .start();
+
+        // -------------------------------------------------------------------
+        // CÓMO lanzamos este script, y POR QUÉ:
+        //
+        // No lo lanzamos directamente (con "cmd /c ..." o similar) porque
+        // entonces el script queda "colgando" de nuestra propia aplicación
+        // Java. Si Windows decide cerrar también los procesos que colgaban
+        // de la app cuando esta se cierra (algo que ocurre en ciertas
+        // circunstancias con apps empaquetadas), el script muere a medias y
+        // el programa nunca se reabre solo.
+        //
+        // En vez de eso, le pedimos al Programador de tareas de Windows
+        // (el mismo sistema que usa, por ejemplo, el propio Windows Update)
+        // que ejecute el script por nosotros. Es un servicio del sistema
+        // operativo totalmente aparte de nuestra app: en cuanto le hemos
+        // encargado la tarea, ya no depende en absoluto de que nuestro
+        // programa siga vivo o no.
+        //
+        // Los 3 pasos son:
+        //   1) Borrar cualquier tarea de una actualización anterior que
+        //      hubiera quedado a medias (por si acaso).
+        //   2) Crear la tarea nueva, indicándole que ejecute nuestro script.
+        //      El Programador de tareas exige una hora de inicio, así que le
+        //      damos "dentro de 1 minuto" aunque no vayamos a esperar tanto.
+        //   3) Decirle "ejecuta esa tarea AHORA MISMO" (sin esperar a la
+        //      hora programada). El propio script, al terminar, se borra a
+        //      sí mismo y borra la tarea programada, para no dejar basura.
+        // -------------------------------------------------------------------
+
+        ejecutarComando(installDir, List.of(
+                "schtasks", "/delete", "/tn", NOMBRE_TAREA_PROGRAMADA, "/f"));
+
+        String horaProgramada = LocalTime.now().plusMinutes(1)
+                .format(DateTimeFormatter.ofPattern("HH:mm"));
+
+        int codigoCrear = ejecutarComando(installDir, List.of(
+                "schtasks", "/create",
+                "/tn", NOMBRE_TAREA_PROGRAMADA,
+                "/tr", "\"" + scriptBat.getAbsolutePath() + "\"",
+                "/sc", "once",
+                "/st", horaProgramada,
+                "/f"));
+
+        if (codigoCrear != 0) {
+            throw new IOException("No se pudo programar el reinicio automático (schtasks /create ha fallado). " +
+                    "Revisa actualizaciones.log para más detalles.");
+        }
+
+        ejecutarComando(installDir, List.of(
+                "schtasks", "/run", "/tn", NOMBRE_TAREA_PROGRAMADA));
+    }
+
+    /**
+     * Ejecuta un comando externo (usado para schtasks) y registra en el log
+     * tanto el comando como su resultado, para poder diagnosticar fallos
+     * sin necesidad de consola.
+     */
+    private int ejecutarComando(File installDir, List<String> comando) {
+        try {
+            Process proceso = new ProcessBuilder(comando)
+                    .redirectErrorStream(true)
+                    .start();
+            String salida = new String(proceso.getInputStream().readAllBytes());
+            boolean terminoATiempo = proceso.waitFor(15, TimeUnit.SECONDS);
+            int codigo = terminoATiempo ? proceso.exitValue() : -1;
+            log(installDir, "Comando: " + String.join(" ", comando) + " -> código " + codigo +
+                    (salida.isBlank() ? "" : " | salida: " + salida.trim().replace("\r\n", " / ")));
+            return codigo;
+        } catch (Exception e) {
+            log(installDir, "No se pudo ejecutar el comando [" + String.join(" ", comando) + "]: " + e);
+            return -1;
+        }
     }
 
     /**
