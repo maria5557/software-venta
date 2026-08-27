@@ -41,7 +41,7 @@ public class VersionApp {
      * ("vX.Y" -> "X.Y") que corresponde a este jar. Súbela manualmente
      * en cada release, ANTES de generar el jar que vas a publicar.
      */
-    public static final String VERSION_ACTUAL = "3.1";
+    public static final String VERSION_ACTUAL = "3.2";
 
     /**
      * URL del archivo version.json que describe la última versión

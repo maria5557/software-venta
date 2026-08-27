@@ -345,7 +345,7 @@ public class ImpresoraService {
         // 1. Buscar "POS-58" para establecerla por defecto
         String impDefecto = impresoras[0];
         for (String imp : impresoras) {
-            if (imp.toLowerCase().contains("pos-58") || imp.toLowerCase().contains("pos58")) {
+            if (imp.toLowerCase().contains("pos-58") || imp.toLowerCase().contains("pos58") || imp.toLowerCase().contains("58")) {
                 impDefecto = imp;
                 break;
             }
