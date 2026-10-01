@@ -1,6 +1,6 @@
 {
   "version": "3.2",
-  "urlDownload": "https://github.com/maria5557/software-venta/releases/download/v3.2/tpv-tienda-1.0-SNAPSHOT.jar",
+  "urlDownload": "https://github.com/maria5557/software-venta/releases/download/v3.3/tpv-tienda-1.0-SNAPSHOT.jar",
   "novedades": "Versión inicial del sistema TPV.",
-  "sha256": "1246ff2e63c225232cd81e453fc083b6c81bee0fb7dbb0236dc2d9691d26d86b"
+  "sha256": "sha256:d4fcf386705d73d257ead56d3bdd3ffbf0c3d8524de6a167369c3cc433c21d83"
 }
