@@ -40,6 +40,13 @@ public class LineaFactura {
         this.descuento = 0;
     }
 
+    public LineaFactura copiar() {
+        LineaFactura c = new LineaFactura(id, facturaId, productoId, codigoProducto,
+                nombreProducto, precioUnitario, cantidad, ivaAplicado);
+        c.setDescuento(descuento);
+        return c;
+    }
+
     /**
      * Calcula el precio con IVA después de aplicar el descuento
      */
@@ -108,4 +115,4 @@ public class LineaFactura {
         return precioOriginalTotal.subtract(precioConDescuentoTotal)
                 .setScale(2, RoundingMode.HALF_UP);
     }
-}
+}

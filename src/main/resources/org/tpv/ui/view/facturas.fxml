@@ -37,6 +37,11 @@
                 style="-fx-background-color: #9b59b6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
         <Button fx:id="btnLimpiarFiltros" text="🔄 Limpiar Filtros" onAction="#limpiarFiltros"
                 style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 8 20; -fx-background-radius: 5; -fx-cursor: hand;" />
+
+        <Region HBox.hgrow="ALWAYS" />
+
+        <CheckBox fx:id="chkMostrarAnuladas" text="Mostrar facturas anuladas"
+                  style="-fx-font-weight: bold; -fx-text-fill: #c0392b;" />
     </HBox>
 
     <!-- TABLA DE FACTURAS -->
@@ -55,13 +60,14 @@
             <columns>
                 <TableColumn fx:id="colNumero" prefWidth="150.0" text="Nº FACTURA" />
                 <TableColumn fx:id="colFecha" prefWidth="180.0" text="FECHA" />
-                <TableColumn fx:id="colCliente" prefWidth="300.0" text="CLIENTE" />
-                <TableColumn fx:id="colTotal" prefWidth="150.0" text="TOTAL" />
-                <TableColumn fx:id="colAcciones" prefWidth="120.0" text="ACCIONES" />
+                <TableColumn fx:id="colCliente" prefWidth="250.0" text="CLIENTE" />
+                <TableColumn fx:id="colEstado" prefWidth="100.0" text="ESTADO" />
+                <TableColumn fx:id="colTotal" prefWidth="120.0" text="TOTAL" />
+                <TableColumn fx:id="colAcciones" prefWidth="300.0" text="ACCIONES" />
             </columns>
             <placeholder>
                 <Label text="No hay facturas registradas" style="-fx-font-size: 14px; -fx-text-fill: #95a5a6;" />
             </placeholder>
         </TableView>
     </VBox>
-</VBox>
+</VBox>

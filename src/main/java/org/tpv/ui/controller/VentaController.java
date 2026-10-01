@@ -61,13 +61,6 @@ public class VentaController {
     @FXML private Label lblClienteActual;
     @FXML private Button btnSeleccionarCliente;
 
-    // Método de pago
-    @FXML private ToggleButton btnPagoEfectivo;
-    @FXML private ToggleButton btnPagoTarjeta;
-    @FXML private VBox panelEfectivo;
-    @FXML private TextField txtEntregado;
-    @FXML private Label lblCambio;
-
     // ===== SERVICIOS Y DATOS =====
     private ProductoService productoService;
     private VentaService ventaService;
@@ -76,8 +69,15 @@ public class VentaController {
     private ConfiguracionRepository configRepository;
     private ClienteService clienteService;
 
-    private final ToggleGroup togglePago = new ToggleGroup();
     private ObservableList<LineaFactura> lineasObservables = FXCollections.observableArrayList();
+
+    /**
+     * Factura ya cobrada y guardada en BD. Mientras no sea null, el botón
+     * "Cobrar" pasa a comportarse como "Imprimir ticket" (reimpresión),
+     * para evitar guardar la misma venta dos veces en la base de datos.
+     * Se vuelve a poner a null al iniciar una nueva venta.
+     */
+    private Factura facturaCobrada;
 
     // ===== INICIALIZACIÓN =====
     @FXML
@@ -94,7 +94,6 @@ public class VentaController {
             impresoraService = new ImpresoraService(config);
 
             configurarTabla();
-            configurarSelectorPago();
 
             txtCodigoBarra.requestFocus();
             iniciarReloj();
@@ -111,100 +110,6 @@ public class VentaController {
             System.err.println("❌ Error al inicializar VentaController: " + e.getMessage());
             e.printStackTrace();
             mostrarError("Error de inicialización", "No se pudo cargar la configuración: " + e.getMessage());
-        }
-    }
-
-    // ===== CONFIGURAR SELECTOR DE PAGO =====
-    private void configurarSelectorPago() {
-        btnPagoEfectivo.setToggleGroup(togglePago);
-        btnPagoTarjeta.setToggleGroup(togglePago);
-
-        // Efectivo seleccionado por defecto
-        btnPagoEfectivo.setSelected(true);
-        aplicarEstiloToggle(btnPagoEfectivo, true);
-        aplicarEstiloToggle(btnPagoTarjeta, false);
-        panelEfectivo.setVisible(true);
-        panelEfectivo.setManaged(true);
-
-        // Evitar deselección total (siempre uno activo)
-        togglePago.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal == null) oldVal.setSelected(true);
-        });
-    }
-
-    /** Aplica estilo visual al botón según si está seleccionado o no */
-    private void aplicarEstiloToggle(ToggleButton btn, boolean seleccionado) {
-        if (seleccionado) {
-            btn.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10;"
-                    + (btn == btnPagoEfectivo
-                    ? "-fx-background-radius: 6 0 0 6;"
-                    : "-fx-background-radius: 0 6 6 0;")
-                    + "-fx-background-color: #27ae60; -fx-text-fill: white; -fx-cursor: hand;");
-        } else {
-            btn.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10;"
-                    + (btn == btnPagoEfectivo
-                    ? "-fx-background-radius: 6 0 0 6;"
-                    : "-fx-background-radius: 0 6 6 0;")
-                    + "-fx-background-color: #dee2e6; -fx-text-fill: #495057; -fx-cursor: hand;");
-        }
-    }
-
-    /** Llamado desde FXML cuando se pulsa cualquiera de los toggle buttons */
-    @FXML
-    private void onMetodoPagoChanged() {
-        boolean esEfectivo = btnPagoEfectivo.isSelected();
-
-        aplicarEstiloToggle(btnPagoEfectivo, esEfectivo);
-        aplicarEstiloToggle(btnPagoTarjeta, !esEfectivo);
-
-        panelEfectivo.setVisible(esEfectivo);
-        panelEfectivo.setManaged(esEfectivo);
-
-        if (!esEfectivo) {
-            txtEntregado.clear();
-            lblCambio.setText("—");
-        } else {
-            recalcularCambio();
-        }
-
-        ventaService.setMetodoPago(esEfectivo ? "EFECTIVO" : "TARJETA");
-    }
-
-    /** Llamado desde FXML al teclear en el campo de importe entregado */
-    @FXML
-    private void onEntregadoChanged() {
-        recalcularCambio();
-    }
-
-    private void recalcularCambio() {
-        String texto = txtEntregado.getText().trim().replace(",", ".");
-        if (texto.isEmpty()) { lblCambio.setText("—"); return; }
-        try {
-            BigDecimal entregado = new BigDecimal(texto);
-            BigDecimal total     = ventaService.finalizarVenta().getTotalConIva();
-            BigDecimal cambio    = entregado.subtract(total).setScale(2, RoundingMode.HALF_UP);
-            if (cambio.compareTo(BigDecimal.ZERO) >= 0) {
-                lblCambio.setText(String.format("%.2f", cambio));
-                lblCambio.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
-            } else {
-                lblCambio.setText(String.format("%.2f", cambio));
-                lblCambio.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #e74c3c;");
-            }
-        } catch (NumberFormatException e) {
-            lblCambio.setText("—");
-        }
-    }
-
-    private String getMetodoPagoSeleccionado() {
-        return btnPagoTarjeta.isSelected() ? "TARJETA" : "EFECTIVO";
-    }
-
-    /** Devuelve el importe entregado por el cliente (sólo aplica a efectivo) */
-    private BigDecimal getEntregadoCliente() {
-        try {
-            return new BigDecimal(txtEntregado.getText().trim().replace(",", "."));
-        } catch (Exception e) {
-            return BigDecimal.ZERO;
         }
     }
 
@@ -346,41 +251,58 @@ public class VentaController {
         f.getLineas().remove(s); f.recalcularTotales(); actualizarVista();
     }
 
-    // ===== COBRAR =====
+    // ===== COBRAR / CERRAR TICKET =====
+
+    /**
+     * Pequeño contenedor con el resultado del diálogo de cobro:
+     * el método de pago elegido y, si es efectivo, el importe entregado.
+     */
+    private static class ResultadoPago {
+        final String metodoPago;
+        final BigDecimal entregado;
+        ResultadoPago(String metodoPago, BigDecimal entregado) {
+            this.metodoPago = metodoPago;
+            this.entregado = entregado;
+        }
+    }
+
+    /**
+     * Botón "COBRAR" / "Cerrar ticket".
+     *
+     * - Si la venta actual todavía NO se ha cobrado: abre el diálogo de cobro
+     *   (método de pago + importe entregado). Si se pulsa "Cancelar" en ese
+     *   diálogo, no se guarda nada y se puede seguir modificando el ticket.
+     *   Si se pulsa "Aceptar", el ticket se guarda en BD y a continuación se
+     *   pregunta si se quiere imprimir.
+     * - Si la venta YA se ha cobrado (botón convertido en "Imprimir ticket"):
+     *   simplemente reimprime la factura ya guardada, sin volver a guardarla.
+     */
     @FXML
     private void onCobrar() {
+        // La venta actual ya se cobró: el botón ahora es "Imprimir ticket"
+        if (facturaCobrada != null) {
+            imprimirTicket(facturaCobrada);
+            return;
+        }
+
         if (lineasObservables.isEmpty()) { mostrarAlerta("Venta vacía", "Añade productos antes de cobrar"); return; }
 
-        String metodoPago = getMetodoPagoSeleccionado();
+        BigDecimal total = ventaService.finalizarVenta().getTotalConIva();
 
-        // Validación efectivo: importe entregado >= total
-        if (metodoPago.equals("EFECTIVO")) {
-            BigDecimal entregado = getEntregadoCliente();
-            BigDecimal total     = ventaService.finalizarVenta().getTotalConIva();
-            /*
-            if (entregado.compareTo(BigDecimal.ZERO) <= 0) {
-                mostrarAlerta("Importe no introducido", "Introduce el importe que entrega el cliente");
-                txtEntregado.requestFocus();
-                return;
-            }
-
-            if (entregado.compareTo(total) < 0) {
-                mostrarAlerta("Importe insuficiente",
-                        String.format("El cliente entrega %.2f€ pero el total es %.2f€", entregado, total));
-                txtEntregado.requestFocus();
-                return;
-            }
-
-             */
+        Optional<ResultadoPago> resultado = mostrarDialogoPago(total);
+        if (resultado.isEmpty()) {
+            // Cancelar: el ticket NO se guarda, se puede seguir modificando
+            return;
         }
+        ResultadoPago pago = resultado.get();
 
         // Registrar método de pago e importe entregado en la factura
-        ventaService.setMetodoPago(metodoPago);
-        if (metodoPago.equals("EFECTIVO")) {
-            ventaService.setEntregadoCliente(getEntregadoCliente());
+        ventaService.setMetodoPago(pago.metodoPago);
+        if (pago.metodoPago.equals("EFECTIVO")) {
+            ventaService.setEntregadoCliente(pago.entregado);
         }
 
-        // Guardar en BD
+        // Guardar en BD (a partir de aquí la venta queda cerrada)
         Factura factura = ventaService.finalizarVenta();
         Empleado empleadoActual = SesionUsuario.getEmpleadoActivo();
 
@@ -388,7 +310,6 @@ public class VentaController {
             factura.setEmpleadoId(empleadoActual.getId());
             factura.setEmpleadoNombre(empleadoActual.getNombre());
         } else {
-
             factura.setEmpleadoNombre("Admin");
         }
 
@@ -400,42 +321,166 @@ public class VentaController {
             return;
         }
 
-        //actualizarProductosEnBD(factura);
         actualizarClienteEnBD();
 
-        // Diálogo de confirmación
-        String clienteInfo  = factura.getClienteNombre() != null ? "\nCliente: " + factura.getClienteNombre() : "";
-        String pagoInfo     = metodoPago.equals("TARJETA") ? "💳 Tarjeta" : "💵 Efectivo";
-        String cambioInfo   = "";
-        if (metodoPago.equals("EFECTIVO")) {
-            BigDecimal entregado = factura.getEntregadoCliente();
-            BigDecimal cambio    = entregado.subtract(factura.getTotalConIva()).setScale(2, RoundingMode.HALF_UP);
-            cambioInfo = String.format("\nEntrega: %.2f€   Cambio: %.2f€", entregado, cambio);
-        }
+        // A partir de aquí la venta ya está guardada: cambiamos el estado del
+        // botón principal para que no se pueda volver a guardar por error.
+        facturaCobrada = factura;
+        btnCobrar.setText("🖨️ Imprimir ticket");
+        fijarVentaCerrada(true);
 
+        System.out.println("✓ Venta cobrada: " + factura.getTotalConIva() + "€ (" + pago.metodoPago + ")");
+
+        // El ticket YA está guardado; esto solo decide si además se imprime o no
+        preguntarEImprimir(factura);
+    }
+
+    /**
+     * Construye y muestra el diálogo de cobro: total a pagar, selector de
+     * método de pago (efectivo/tarjeta) y, si es efectivo, importe entregado
+     * y cambio calculado en vivo. Devuelve Optional.empty() si se cancela.
+     */
+    private Optional<ResultadoPago> mostrarDialogoPago(BigDecimal total) {
+        Dialog<ResultadoPago> dialog = new Dialog<>();
+        dialog.setTitle("Cerrar ticket");
+        dialog.setHeaderText(null);
+
+        ButtonType btnAceptar  = new ButtonType("Aceptar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnCancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(btnAceptar, btnCancelar);
+        dialog.getDialogPane().setPrefWidth(400);
+
+        VBox contenido = new VBox(16);
+        contenido.setPadding(new javafx.geometry.Insets(10, 10, 5, 10));
+
+        // --- Total a pagar, bien visible ---
+        Label lblTituloTotal = new Label("TOTAL A PAGAR");
+        lblTituloTotal.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #7f8c8d;");
+        Label lblTotalGrande = new Label(String.format("%.2f €", total));
+        lblTotalGrande.setStyle("-fx-font-size: 34px; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
+        VBox bloqueTotal = new VBox(2, lblTituloTotal, lblTotalGrande);
+        bloqueTotal.setAlignment(javafx.geometry.Pos.CENTER);
+
+        // --- Selector método de pago (local a este diálogo) ---
+        ToggleGroup grupoPago = new ToggleGroup();
+        ToggleButton tEfectivo = new ToggleButton("💵  Efectivo");
+        ToggleButton tTarjeta  = new ToggleButton("💳  Tarjeta");
+        tEfectivo.setToggleGroup(grupoPago);
+        tTarjeta.setToggleGroup(grupoPago);
+        tEfectivo.setSelected(true);
+        tEfectivo.setMaxWidth(Double.MAX_VALUE);
+        tTarjeta.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(tEfectivo, javafx.scene.layout.Priority.ALWAYS);
+        HBox.setHgrow(tTarjeta, javafx.scene.layout.Priority.ALWAYS);
+        HBox filaToggles = new HBox(0, tEfectivo, tTarjeta);
+
+        // --- Panel efectivo: importe entregado + cambio ---
+        TextField txtEntregadoDialog = new TextField();
+        txtEntregadoDialog.setPromptText("0.00");
+        txtEntregadoDialog.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-padding: 8;");
+        Label lblCambioDialog = new Label("—");
+        lblCambioDialog.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #27ae60;");
+
+        HBox filaEntregado = new HBox(10, new Label("Entrega cliente:"), txtEntregadoDialog, new Label("€"));
+        filaEntregado.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        HBox filaCambio = new HBox(10, new Label("Cambio:"), lblCambioDialog, new Label("€"));
+        filaCambio.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+
+        VBox panelEfectivoDialog = new VBox(10, filaEntregado, filaCambio);
+        panelEfectivoDialog.setStyle("-fx-padding: 10 0 0 0;");
+
+        Runnable actualizarEstiloToggles = () -> {
+            boolean esEfectivo = tEfectivo.isSelected();
+            String base = "-fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10; -fx-cursor: hand;";
+            tEfectivo.setStyle(base + "-fx-background-radius: 6 0 0 6;"
+                    + (esEfectivo ? "-fx-background-color: #27ae60; -fx-text-fill: white;"
+                    : "-fx-background-color: #dee2e6; -fx-text-fill: #495057;"));
+            tTarjeta.setStyle(base + "-fx-background-radius: 0 6 6 0;"
+                    + (!esEfectivo ? "-fx-background-color: #27ae60; -fx-text-fill: white;"
+                    : "-fx-background-color: #dee2e6; -fx-text-fill: #495057;"));
+        };
+        actualizarEstiloToggles.run();
+
+        Runnable recalcularCambioDialog = () -> {
+            String texto = txtEntregadoDialog.getText().trim().replace(",", ".");
+            if (texto.isEmpty()) { lblCambioDialog.setText("—"); return; }
+            try {
+                BigDecimal entregado = new BigDecimal(texto);
+                BigDecimal cambio = entregado.subtract(total).setScale(2, RoundingMode.HALF_UP);
+                lblCambioDialog.setText(String.format("%.2f", cambio));
+                lblCambioDialog.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: "
+                        + (cambio.compareTo(BigDecimal.ZERO) >= 0 ? "#27ae60;" : "#e74c3c;"));
+            } catch (NumberFormatException e) {
+                lblCambioDialog.setText("—");
+            }
+        };
+
+        grupoPago.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) { oldVal.setSelected(true); return; }
+            boolean esEfectivo = newVal == tEfectivo;
+            panelEfectivoDialog.setVisible(esEfectivo);
+            panelEfectivoDialog.setManaged(esEfectivo);
+            actualizarEstiloToggles.run();
+        });
+        txtEntregadoDialog.textProperty().addListener((obs, ov, nv) -> recalcularCambioDialog.run());
+
+        contenido.getChildren().addAll(bloqueTotal, new Separator(), filaToggles, panelEfectivoDialog);
+        dialog.getDialogPane().setContent(contenido);
+
+        javafx.application.Platform.runLater(txtEntregadoDialog::requestFocus);
+
+        dialog.setResultConverter(b -> {
+            if (b != btnAceptar) return null;
+            boolean esEfectivo = tEfectivo.isSelected();
+            BigDecimal entregado = BigDecimal.ZERO;
+            if (esEfectivo) {
+                try {
+                    entregado = new BigDecimal(txtEntregadoDialog.getText().trim().replace(",", "."));
+                } catch (Exception e) {
+                    entregado = BigDecimal.ZERO;
+                }
+            }
+            return new ResultadoPago(esEfectivo ? "EFECTIVO" : "TARJETA", entregado);
+        });
+
+        return dialog.showAndWait();
+    }
+
+    /**
+     * El ticket YA está guardado en BD cuando se llama a este método: esto
+     * solo pregunta si, además, se quiere imprimir en el momento.
+     */
+    private void preguntarEImprimir(Factura factura) {
         Alert conf = new Alert(Alert.AlertType.CONFIRMATION);
-        conf.setTitle("Cobro realizado");
-        conf.setHeaderText("✓ Venta finalizada correctamente");
-        conf.setContentText(String.format(
-                "═══════════════════════════════\nFactura: %s%s\n═══════════════════════════════\nBase imponible: %.2f€\nIVA (%d%%):      %.2f€\n───────────────────────────────\nTOTAL:          %.2f€\n═══════════════════════════════\nPago: %s%s\n\n¿Deseas imprimir el ticket?",
-                factura.getNumeroFactura(), clienteInfo,
-                factura.getTotalSinIva(), config.getIvaGeneral(), factura.getTotalIva(),
-                factura.getTotalConIva(), pagoInfo, cambioInfo
-        ));
+        conf.setTitle("Venta cobrada");
+        conf.setHeaderText("✓ Ticket " + factura.getNumeroFactura() + " guardado correctamente");
+        conf.setContentText("¿Deseas imprimir el ticket?");
 
-        ButtonType btnImprimir    = new ButtonType("Imprimir");
-        ButtonType btnNoImprimir  = new ButtonType("No imprimir");
-        ButtonType btnCancelarFin = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
-        conf.getButtonTypes().setAll(btnImprimir, btnNoImprimir, btnCancelarFin);
+        ButtonType btnSiTicket = new ButtonType("Sí");
+        //ButtonType btnSiA4     = new ButtonType("Imprimir Factura A4");
+        ButtonType btnNo       = new ButtonType("No", ButtonBar.ButtonData.CANCEL_CLOSE);
+        conf.getButtonTypes().setAll(btnSiTicket, btnNo);
 
-        Optional<ButtonType> res = conf.showAndWait();
-        if (res.isPresent()) {
-            if (res.get() == btnImprimir)    imprimirTicket(factura);
-            else if (res.get() == btnCancelarFin) return;
-        }
+        conf.showAndWait().ifPresent(b -> {
+            if (b == btnSiTicket)   imprimirTicket(factura);
+            //else if (b == btnSiA4)  org.tpv.ui.FacturaA4Window.mostrar(factura, ventaService.getClienteActual(), config);
+            // btnNo: no se hace nada, el ticket ya quedó guardado igualmente
+        });
+    }
 
-        System.out.println("✓ Venta cobrada: " + factura.getTotalConIva() + "€ (" + metodoPago + ")");
-        onNuevaVenta();
+    /**
+     * Bloquea/desbloquea la edición del ticket. Se bloquea justo después de
+     * cobrar (para no poder seguir añadiendo líneas a una venta ya cerrada y
+     * guardada) y se desbloquea al iniciar una nueva venta.
+     */
+    private void fijarVentaCerrada(boolean cerrada) {
+        txtCodigoBarra.setDisable(cerrada);
+        btnAñadir.setDisable(cerrada);
+        btnIncrementar.setDisable(cerrada);
+        btnDecrementar.setDisable(cerrada);
+        btnEliminar.setDisable(cerrada);
+        btnSeleccionarCliente.setDisable(cerrada);
+        tablaTicket.setEditable(!cerrada);
     }
 
     // ===== NUEVA VENTA =====
@@ -450,14 +495,12 @@ public class VentaController {
         lineasObservables.clear();
         actualizarTotales(new Factura());
         txtCodigoBarra.clear();
-        txtEntregado.clear();
-        lblCambio.setText("—");
-        // Restablecer selector a efectivo
-        btnPagoEfectivo.setSelected(true);
-        aplicarEstiloToggle(btnPagoEfectivo, true);
-        aplicarEstiloToggle(btnPagoTarjeta, false);
-        panelEfectivo.setVisible(true);
-        panelEfectivo.setManaged(true);
+
+        // Nueva venta: se puede volver a cobrar y a editar el ticket
+        facturaCobrada = null;
+        btnCobrar.setText("💳 COBRAR");
+        fijarVentaCerrada(false);
+
         txtCodigoBarra.requestFocus();
     }
 
@@ -870,8 +913,6 @@ public class VentaController {
         if (lblCantidadArticulos != null)
             lblCantidadArticulos.setText(total + " artículo" + (total != 1 ? "s" : ""));
         tablaTicket.refresh();
-        // Recalcular cambio al actualizar totales (por si cambió el total)
-        recalcularCambio();
     }
 
     private void actualizarTotales(Factura f) {

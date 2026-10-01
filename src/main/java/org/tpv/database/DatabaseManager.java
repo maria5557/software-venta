@@ -129,6 +129,11 @@ public class DatabaseManager {
                     total_con_iva REAL,
                     metodo_pago TEXT DEFAULT 'EFECTIVO',
                     entregado_cliente DECIMAL(10,2) DEFAULT 0,
+                    estado TEXT NOT NULL DEFAULT 'EMITIDA',
+                    motivo_anulacion TEXT,
+                    fecha_anulacion TEXT,
+                    anulada_por TEXT,
+                    fecha_modificacion TEXT,
                     FOREIGN KEY (cliente_id) REFERENCES cliente(id),
                     FOREIGN KEY (empleado_id) REFERENCES empleado(id)
                 )
@@ -138,6 +143,37 @@ public class DatabaseManager {
                 stmt.execute("ALTER TABLE factura RENAME COLUMN fecha TO fechaEmision;");
             } catch (SQLException ignored) {
                 // Si la columna ya se llama fechaEmision o la BD es nueva, ignora el aviso
+            }
+
+            // Migración para bases de datos existentes: ciclo de vida de la factura
+            anadirColumnaSiNoExiste(conn, "factura", "estado", "TEXT NOT NULL DEFAULT 'EMITIDA'");
+            anadirColumnaSiNoExiste(conn, "factura", "motivo_anulacion", "TEXT");
+            anadirColumnaSiNoExiste(conn, "factura", "fecha_anulacion", "TEXT");
+            anadirColumnaSiNoExiste(conn, "factura", "anulada_por", "TEXT");
+            anadirColumnaSiNoExiste(conn, "factura", "fecha_modificacion", "TEXT");
+
+            // Historial de cambios (auditoría) de las facturas
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS factura_auditoria (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    factura_id INTEGER NOT NULL,
+                    numero_factura TEXT,
+                    accion TEXT NOT NULL,
+                    detalle TEXT,
+                    motivo TEXT,
+                    usuario TEXT,
+                    fecha TEXT NOT NULL,
+                    FOREIGN KEY (factura_id) REFERENCES factura(id)
+                )
+            """);
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_factura ON factura_auditoria(factura_id)");
+
+            // El número de factura es único: red de seguridad ante accesos concurrentes.
+            try {
+                stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_factura_numero ON factura(numero_factura)");
+            } catch (SQLException e) {
+                System.err.println("⚠️ No se pudo crear el índice único de numero_factura "
+                        + "(¿hay números duplicados en la BD?): " + e.getMessage());
             }
 
             // Crear tabla linea_factura
@@ -180,6 +216,29 @@ public class DatabaseManager {
 
             System.out.println("✓ Base de datos SQLite inicializada correctamente");
             System.out.println("✓ Conectado a: " + dbUrl);
+        }
+    }
+
+    /**
+     * Añade una columna a una tabla solo si todavía no existe (migración idempotente).
+     */
+    private static void anadirColumnaSiNoExiste(Connection conn, String tabla, String columna, String definicion)
+            throws SQLException {
+        boolean existe = false;
+        try (Statement st = conn.createStatement();
+             java.sql.ResultSet rs = st.executeQuery("PRAGMA table_info(" + tabla + ")")) {
+            while (rs.next()) {
+                if (columna.equalsIgnoreCase(rs.getString("name"))) {
+                    existe = true;
+                    break;
+                }
+            }
+        }
+        if (!existe) {
+            try (Statement st = conn.createStatement()) {
+                st.execute("ALTER TABLE " + tabla + " ADD COLUMN " + columna + " " + definicion);
+                System.out.println("✓ Migración: añadida columna " + tabla + "." + columna);
+            }
         }
     }
 }

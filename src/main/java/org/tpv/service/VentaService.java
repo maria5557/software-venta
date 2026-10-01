@@ -35,8 +35,9 @@ public class VentaService {
     }
 
     public void guardarVenta() throws SQLException {
-        String nuevoNumero = facturaService.generarSiguienteNumeroFactura();
-        facturaActual.setNumeroFactura(nuevoNumero);
+        // El número definitivo lo asigna FacturaService de forma atómica (con reintento
+        // si otro puesto toma el mismo número a la vez).
+        facturaActual.setNumeroFactura(null);
         facturaService.guardarFactura(facturaActual);
     }
 
@@ -88,4 +89,4 @@ public class VentaService {
         c.setNombre(facturaActual.getClienteNombre());
         return c;
     }
-}
+}
